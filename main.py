@@ -43,9 +43,9 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     # second_pass: make sure we don't have any duplicate
 
     ## for moods
-    merged.custom_moods.sort(key=lambda x: (x.custom_name, x.icon_id))
+    merged.custom_moods.sort(key=lambda x: (x.custom_name.lower(), x.icon_id))
     for prev_mood, cur_mood in pairwise(merged.custom_moods):
-        if prev_mood.custom_name == cur_mood.custom_name and \
+        if prev_mood.custom_name.lower() == cur_mood.custom_name.lower() and \
                 prev_mood.icon_id == cur_mood.icon_id:
             cur_mood.id_ = -1  # mark for deletion
             for entry in merged.day_entries:
@@ -57,9 +57,13 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     ]
 
     ## for tags
-    merged.tags.sort(key=lambda x: (x.name, x.icon))
+    merged.tags.sort(key=lambda x: (x.name.lower(), x.icon))
+
     for prev_tag, cur_tag in pairwise(merged.tags):
-        if prev_tag.name == cur_tag.name and prev_tag.icon == cur_tag.icon:
+        if prev_tag.name.lower() != cur_tag.name.lower(
+        ) or prev_tag.icon == cur_tag.icon:
+            continue
+
             cur_tag.id_ = -1
             for entry in merged.day_entries:
                 entry.tags = [
