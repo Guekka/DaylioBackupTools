@@ -333,3 +333,8 @@ class WritingTemplate(BaseModel):
     predefined_template_id: int
     title: str
     body: str
+
+
+def init_pydantic() -> None:
+    Daylio.update_forward_refs()
+    PreferredMoodIconsIdsForMoodIdsForIconsPack.update_forward_refs()
