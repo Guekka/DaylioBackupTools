@@ -116,6 +116,9 @@ def main() -> None:
     old = load_daylio_backup(sys.argv[1])
     new = load_daylio_backup(sys.argv[2])
 
+    if old.version != 15 or new.version != 15:
+        print("Warning: version is not 15. This may not work.")
+
     out = "out.daylio"
     if len(sys.argv) == 4:
         out = sys.argv[3]
