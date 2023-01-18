@@ -82,12 +82,20 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
                 entry.mood = i + 1
         mood.id_ = i + 1
 
+    # here, we have an additional difficulty: new tag ids might collide with old ids
+    # so we preprocess the tags to make sure we don't have any collisions
+    for tag in merged.tags:
+        tag.id_ += BIG_OFFSET
+    for entry in merged.day_entries:
+        entry.tags = [tag + BIG_OFFSET for tag in entry.tags]
+
     for i, tag in enumerate(merged.tags):
         for entry in merged.day_entries:
             entry.tags = [i + 1 if t == tag.id_ else t for t in entry.tags]
 
         tag.id_ = i + 1
         tag.order = i + 1
+
     for i, entry in enumerate(merged.day_entries):
         entry.id_ = i + 1
 
