@@ -103,7 +103,16 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
 
     merged.tags = [tag for tag in merged.tags if tag.id_ != -1]
 
-    # TODO: make sure we don't have any duplicate entry
+    ## for entries
+    merged.day_entries.sort(key=lambda x: (x.datetime_, x.year, x.month))
+    for prev_entry, cur_entry in pairwise(merged.day_entries):
+        # we do not want to lose any data, so they need to be exactly the same
+        if prev_entry.datetime_ == cur_entry.datetime_:
+            cur_entry.id_ = -1
+
+    merged.day_entries = [
+        entry for entry in merged.day_entries if entry.id_ != -1
+    ]
 
     # finally, sort by date and update ids
     merged.custom_moods.sort(key=lambda x: (x.created_at, x.mood_group_id))
