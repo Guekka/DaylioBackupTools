@@ -1,4 +1,4 @@
-from model.daylio import Daylio, init_pydantic
+from model.daylio import CustomMood, Daylio, Tag, init_pydantic
 import sys
 from itertools import pairwise
 import base64
@@ -22,17 +22,58 @@ def store_daylio_backup(daylio: Daylio, path: str) -> None:
         zip_ref.writestr('backup.daylio', data)
 
 
+class IdGenerator:
+
+    def __init__(self, offset: int, start: int) -> None:
+        self.offset = offset
+        self.current = start
+
+    def __call__(self) -> int:
+        self.current += self.offset
+        return self.current
+
+
+def change_mood_id(daylio: Daylio, mood: CustomMood, new_id: int) -> None:
+    for entry in daylio.day_entries:
+        if entry.mood == mood.id_:
+            entry.mood = new_id
+
+    mood.id_ = new_id
+
+
+def change_tag_id(daylio: Daylio, tag: Tag, new_id: int) -> None:
+    for entry in daylio.day_entries:
+        for i, tag_id in enumerate(entry.tags):
+            if tag_id == tag.id_:
+                entry.tags[i] = new_id
+                break  # there can be only one
+
+    tag.id_ = new_id
+
+
+def is_duplicate_mood(mood1: CustomMood, mood2: CustomMood) -> bool:
+    lhs = (mood1.custom_name.lower(), mood1.icon_id, mood1.mood_group_id)
+    rhs = (mood2.custom_name.lower(), mood2.icon_id, mood2.mood_group_id)
+    return lhs == rhs
+
+
+def is_duplicate_tag(tag1: Tag, tag2: Tag) -> bool:
+    lhs = (tag1.name.lower(), tag1.icon)
+    rhs = (tag2.name.lower(), tag2.icon)
+    return lhs == rhs
+
+
 def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     BIG_OFFSET = 1000
-    # update custom moods id
+    id_generator = IdGenerator(BIG_OFFSET, BIG_OFFSET)
+
     # first_pass: make sure we don't have any duplicates id
-    for mood in daylio1.custom_moods:
-        mood.id_ = mood.id_ + BIG_OFFSET
-    for tag in daylio1.tags:
-        tag.id_ = tag.id_ + BIG_OFFSET
-    for entry in daylio1.day_entries:
-        entry.mood = entry.mood + BIG_OFFSET
-        entry.tags = [tag + BIG_OFFSET for tag in entry.tags]
+    for d in (daylio1, daylio2):
+        for mood in d.custom_moods:
+            change_mood_id(d, mood=mood, new_id=id_generator())
+
+        for tag in d.tags:
+            change_tag_id(d, tag=tag, new_id=id_generator())
 
     # merge
     merged = daylio1.copy(deep=True)
@@ -45,12 +86,9 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     ## for moods
     merged.custom_moods.sort(key=lambda x: (x.custom_name.lower(), x.icon_id))
     for prev_mood, cur_mood in pairwise(merged.custom_moods):
-        if prev_mood.custom_name.lower() == cur_mood.custom_name.lower() and \
-                prev_mood.icon_id == cur_mood.icon_id:
+        if is_duplicate_mood(prev_mood, cur_mood):
+            change_mood_id(merged, mood=cur_mood, new_id=prev_mood.id_)
             cur_mood.id_ = -1  # mark for deletion
-            for entry in merged.day_entries:
-                if entry.mood == cur_mood.id_:
-                    entry.mood = prev_mood.id_
 
     merged.custom_moods = [
         mood for mood in merged.custom_moods if mood.id_ != -1
@@ -58,50 +96,33 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
 
     ## for tags
     merged.tags.sort(key=lambda x: (x.name.lower(), x.icon))
-
     for prev_tag, cur_tag in pairwise(merged.tags):
-        if prev_tag.name.lower() != cur_tag.name.lower(
-        ) or prev_tag.icon == cur_tag.icon:
-            continue
-
-            cur_tag.id_ = -1
-            for entry in merged.day_entries:
-                entry.tags = [
-                    tag if tag != cur_tag.id_ else prev_tag.id_
-                    for tag in entry.tags
-                ]
+        if is_duplicate_tag(prev_tag, cur_tag):
+            change_tag_id(merged, tag=cur_tag, new_id=prev_tag.id_)
+            cur_tag.id_ = -1  # mark for deletion
 
     merged.tags = [tag for tag in merged.tags if tag.id_ != -1]
 
+    # TODO: make sure we don't have any duplicate entry
+
     # finally, sort by date and update ids
-    merged.custom_moods.sort(key=lambda x: x.created_at)
+    merged.custom_moods.sort(key=lambda x: (x.created_at, x.mood_group_id))
     merged.tags.sort(key=lambda x: x.created_at)
-    merged.day_entries.sort(key=lambda x: x.datetime_)
+    merged.day_entries.sort(key=lambda x: (x.datetime_, x.year, x.month))
 
     # ids start at 1
+    id_generator = IdGenerator(1, 1)
+    for mood in merged.custom_moods:
+        change_mood_id(merged, mood=mood, new_id=id_generator())
 
-    for i, mood in enumerate(merged.custom_moods):
-        for entry in merged.day_entries:
-            if entry.mood == mood.id_:
-                entry.mood = i + 1
-        mood.id_ = i + 1
-
-    # here, we have an additional difficulty: new tag ids might collide with old ids
-    # so we preprocess the tags to make sure we don't have any collisions
-    for tag in merged.tags:
-        tag.id_ += BIG_OFFSET
-    for entry in merged.day_entries:
-        entry.tags = [tag + BIG_OFFSET for tag in entry.tags]
-
+    id_generator = IdGenerator(1, 1)
     for i, tag in enumerate(merged.tags):
-        for entry in merged.day_entries:
-            entry.tags = [i + 1 if t == tag.id_ else t for t in entry.tags]
+        change_tag_id(merged, tag=tag, new_id=id_generator())
+        tag.order = i
 
-        tag.id_ = i + 1
-        tag.order = i + 1
-
-    for i, entry in enumerate(merged.day_entries):
-        entry.id_ = i + 1
+    id_generator = IdGenerator(1, 1)
+    for entry in merged.day_entries:
+        entry.id_ = id_generator()
 
     # update metadata
     merged.metadata.number_of_entries = len(merged.day_entries)
