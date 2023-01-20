@@ -24,9 +24,9 @@ def store_daylio_backup(daylio: Daylio, path: str) -> None:
 
 class IdGenerator:
 
-    def __init__(self, offset: int, start: int) -> None:
+    def __init__(self, offset: int) -> None:
         self.offset = offset
-        self.current = start
+        self.current = 0
 
     def __call__(self) -> int:
         self.current += self.offset
@@ -65,7 +65,7 @@ def is_duplicate_tag(tag1: Tag, tag2: Tag) -> bool:
 
 def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     BIG_OFFSET = 1000
-    id_generator = IdGenerator(BIG_OFFSET, BIG_OFFSET)
+    id_generator = IdGenerator(BIG_OFFSET)
 
     # first_pass: make sure we don't have any duplicates id
     for d in (daylio1, daylio2):
@@ -115,21 +115,45 @@ def merge(daylio1: Daylio, daylio2: Daylio) -> Daylio:
     ]
 
     # finally, sort by date and update ids
-    merged.custom_moods.sort(key=lambda x: (x.created_at, x.mood_group_id))
+    merged.custom_moods.sort(key=lambda x: (x.mood_group_id, x.created_at))
     merged.tags.sort(key=lambda x: x.created_at)
     merged.day_entries.sort(key=lambda x: (x.datetime_, x.year, x.month))
 
-    # ids start at 1
-    id_generator = IdGenerator(1, 1)
+    # fix: sometimes custom moods have a custom name and a predefined name
+    # we keep custom name and remove predefined name
     for mood in merged.custom_moods:
-        change_mood_id(merged, mood=mood, new_id=id_generator())
+        if mood.predefined_name_id != -1 and mood.custom_name:
+            mood.predefined_name_id = -1
 
-    id_generator = IdGenerator(1, 1)
+    # ids start at 1
+    id_generator = IdGenerator(1)
+    # first handle predefined moods
+    for mood in merged.custom_moods:
+        if mood.predefined_name_id != -1:
+            change_mood_id(merged, mood=mood, new_id=id_generator())
+
+    # then handle custom moods
+    # order is important, so we need to sort by mood_group_id and predefined comes first
+    merged.custom_moods.sort(
+        key=lambda x: (x.mood_group_id, -x.predefined_name_id))
+    for mood in merged.custom_moods:
+        if mood.predefined_name_id == -1:
+            change_mood_id(merged, mood=mood, new_id=id_generator())
+
+    # each mood_group_id has an order, so we need to update it
+    merged.custom_moods.sort(key=lambda x: x.mood_group_id)
+    for prev_mood, cur_mood in pairwise(merged.custom_moods):
+        if cur_mood.mood_group_id != prev_mood.mood_group_id:
+            cur_mood.mood_group_order = 0
+        else:
+            cur_mood.mood_group_order = prev_mood.mood_group_order + 1
+
+    id_generator = IdGenerator(1)
     for i, tag in enumerate(merged.tags):
         change_tag_id(merged, tag=tag, new_id=id_generator())
         tag.order = i
 
-    id_generator = IdGenerator(1, 1)
+    id_generator = IdGenerator(1)
     for entry in merged.day_entries:
         entry.id_ = id_generator()
 
