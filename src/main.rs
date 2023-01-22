@@ -1,7 +1,5 @@
 use color_eyre::eyre::{ContextCompat, Result};
-use daylio_tools::{
-    load_daylio_backup, load_daylio_json, merge, store_daylio_backup, store_daylio_json,
-};
+use daylio_tools::{load_daylio, merge, store_daylio_backup, store_daylio_json};
 use std::env;
 use std::path::PathBuf;
 
@@ -96,25 +94,25 @@ fn main() -> Result<()> {
 
     match command {
         Command::Merge { input, output } => {
-            let mut daylio = load_daylio_backup(&input[0])?;
+            let mut daylio = load_daylio(&input[0])?;
 
             for path in input.iter().skip(1) {
-                let other = load_daylio_backup(path)?;
+                let other = load_daylio(path)?;
                 daylio = merge(daylio, other);
             }
             store_daylio_backup(&daylio, &output)?;
         }
         Command::Anonymize { input, output } => {
-            let mut daylio = load_daylio_backup(&input)?;
+            let mut daylio = load_daylio(&input)?;
             daylio_tools::anonymize(&mut daylio);
             store_daylio_backup(&daylio, &output)?;
         }
         Command::Extract { input, output } => {
-            let daylio = load_daylio_backup(&input)?;
+            let daylio = load_daylio(&input)?;
             store_daylio_json(&daylio, &output)?;
         }
         Command::Pack { input, output } => {
-            let daylio = load_daylio_json(&input)?;
+            let daylio = load_daylio(&input)?;
             store_daylio_backup(&daylio, &output)?;
         }
     }

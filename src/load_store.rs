@@ -1,6 +1,6 @@
 use crate::Daylio;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use color_eyre::eyre::WrapErr;
+use color_eyre::eyre::{eyre, ContextCompat, WrapErr};
 use color_eyre::Result;
 use std::fs::File;
 use std::io::prelude::*;
@@ -30,6 +30,19 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
     file.read_to_string(&mut data)?;
 
     serde_json::from_str(&data).wrap_err("Failed to parse Daylio JSON")
+}
+
+pub fn load_daylio(path: &Path) -> Result<Daylio> {
+    if let Some(ext) = path.extension() {
+        let ext = ext.to_str().wrap_err("Unknown file extension")?;
+        match ext.to_lowercase().as_ref() {
+            "daylio" => load_daylio_backup(path),
+            "json" => load_daylio_json(path),
+            _ => Err(eyre!("Unknown file extension")),
+        }
+    } else {
+        Err(eyre!("Missing file extension"))
+    }
 }
 
 pub fn store_daylio_backup(daylio: &Daylio, path: &Path) -> Result<()> {
