@@ -1,26 +1,36 @@
 use crate::Daylio;
+use nanorand::{Rng, WyRand};
+
+fn rand_string(len: usize) -> String {
+    let mut rng = WyRand::new();
+    let mut s = String::with_capacity(len);
+    for _ in 0..len {
+        s.push(rng.generate_range(1u8..26) as char);
+    }
+    s
+}
 
 pub fn anonymize(daylio: &mut Daylio) {
     for (i, mood) in daylio.custom_moods.iter_mut().enumerate() {
-        mood.custom_name = format!("Mood {}", i);
+        mood.custom_name = format!("Mood {} {}", i, rand_string(3));
     }
 
     for (i, tag) in daylio.tags.iter_mut().enumerate() {
-        tag.name = format!("Tag {}", i);
+        tag.name = format!("Tag {} {}", i, rand_string(3));
     }
 
-    for entry in daylio.day_entries.iter_mut() {
-        entry.note = format!("Note {}", entry.id);
+    for (i, entry) in daylio.day_entries.iter_mut().enumerate() {
+        entry.note = format!("Note {} {}", i, rand_string(3));
         entry.time_zone_offset = 0;
-        entry.note_title = format!("Note title {}", entry.id);
+        entry.note_title = format!("Note title {} {}", entry.id, rand_string(3));
     }
 
-    for group in daylio.tag_groups.iter_mut() {
-        group.name = format!("Group {}", group.id);
+    for (i, group) in daylio.tag_groups.iter_mut().enumerate() {
+        group.name = format!("Group {} {}", i, rand_string(3));
     }
 
-    for template in daylio.writing_templates.iter_mut() {
-        template.body = format!("Template {}", template.id);
-        template.title = format!("Template title {}", template.id);
+    for (i, template) in daylio.writing_templates.iter_mut().enumerate() {
+        template.body = format!("Template {} {}", i, rand_string(3));
+        template.title = format!("Template title {} {}", i, rand_string(3));
     }
 }
