@@ -1,4 +1,4 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{ContextCompat, Result};
 use daylio_tools::{
     load_daylio_backup, load_daylio_json, merge, store_daylio_backup, store_daylio_json,
 };
@@ -33,18 +33,28 @@ fn parse_args() -> Result<Command> {
         )
     })?;
 
+    let get_single_in_out = || -> Result<(PathBuf, PathBuf)> {
+        let input = args
+            .get(2)
+            .ok_or_else(|| color_eyre::eyre::eyre!("Missing input path"))?;
+        let output = args
+            .get(3)
+            .ok_or_else(|| color_eyre::eyre::eyre!("Missing output path"))?;
+
+        let input = PathBuf::from(input);
+        let output = PathBuf::from(output);
+
+        Ok((input, output))
+    };
+
     match command.as_str() {
         "merge" => {
-            let inputs = args.iter().skip(2).map(PathBuf::from).collect::<Vec<_>>();
+            let mut inputs = args.iter().skip(2).map(PathBuf::from).collect::<Vec<_>>();
+            let output = inputs.pop().wrap_err("Missing output file")?; // last one is output
 
             if inputs.len() < 2 {
                 return Err(color_eyre::eyre::eyre!("Missing input files"));
             }
-
-            let output = inputs
-                .last()
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing output path"))?
-                .to_path_buf();
 
             Ok(Command::Merge {
                 input: inputs,
@@ -52,43 +62,25 @@ fn parse_args() -> Result<Command> {
             })
         }
         "anonymize" => {
-            let input = args
-                .get(2)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing input path"))?;
-            let output = args
-                .get(3)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing output path"))?;
-
-            let input = PathBuf::from(input);
-            let output = PathBuf::from(output);
-
-            Ok(Command::Anonymize { input, output })
+            let args = get_single_in_out()?;
+            Ok(Command::Anonymize {
+                input: args.0,
+                output: args.1,
+            })
         }
         "extract" => {
-            let input = args
-                .get(2)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing input path"))?;
-            let output = args
-                .get(3)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing output path"))?;
-
-            let input = PathBuf::from(input);
-            let output = PathBuf::from(output);
-
-            Ok(Command::Extract { input, output })
+            let args = get_single_in_out()?;
+            Ok(Command::Extract {
+                input: args.0,
+                output: args.1,
+            })
         }
         "pack" => {
-            let input = args
-                .get(2)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing input path"))?;
-            let output = args
-                .get(3)
-                .ok_or_else(|| color_eyre::eyre::eyre!("Missing output path"))?;
-
-            let input = PathBuf::from(input);
-            let output = PathBuf::from(output);
-
-            Ok(Command::Pack { input, output })
+            let args = get_single_in_out()?;
+            Ok(Command::Pack {
+                input: args.0,
+                output: args.1,
+            })
         }
         _ => Err(color_eyre::eyre::eyre!("Unknown command")),
     }
