@@ -5,7 +5,7 @@ fn rand_string(len: usize) -> String {
     let mut rng = WyRand::new();
     let mut s = String::with_capacity(len);
     for _ in 0..len {
-        s.push(rng.generate_range(1u8..26) as char);
+        s.push(rng.generate_range(65u8..90) as char);
     }
     s
 }
@@ -22,7 +22,7 @@ pub fn anonymize(daylio: &mut Daylio) {
     for (i, entry) in daylio.day_entries.iter_mut().enumerate() {
         entry.note = format!("Note {} {}", i, rand_string(3));
         entry.time_zone_offset = 0;
-        entry.note_title = format!("Note title {} {}", entry.id, rand_string(3));
+        entry.note_title = format!("Note title {} {}", i, rand_string(3));
     }
 
     for (i, group) in daylio.tag_groups.iter_mut().enumerate() {
