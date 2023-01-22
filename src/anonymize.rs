@@ -11,9 +11,14 @@ fn rand_string(len: usize) -> String {
 }
 
 pub fn anonymize(daylio: &mut Daylio) {
-    for (i, mood) in daylio.custom_moods.iter_mut().enumerate() {
-        mood.custom_name = format!("Mood {} {}", i, rand_string(3));
-    }
+    daylio
+        .custom_moods
+        .iter_mut()
+        .filter(|mood| mood.predefined_name_id == -1)
+        .enumerate()
+        .for_each(|(i, mood)| {
+            mood.custom_name = format!("Mood {} {}", i, rand_string(3));
+        });
 
     for (i, tag) in daylio.tags.iter_mut().enumerate() {
         tag.name = format!("Tag {} {}", i, rand_string(3));
