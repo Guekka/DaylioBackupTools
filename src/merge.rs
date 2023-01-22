@@ -9,7 +9,14 @@ struct IdGenerator {
 
 impl IdGenerator {
     fn new(offset: i64) -> Self {
-        Self { offset, current: 0 }
+        Self::with_start(offset, offset)
+    }
+
+    fn with_start(offset: i64, start: i64) -> Self {
+        Self {
+            offset,
+            current: start - offset,
+        }
     }
 
     fn next(&mut self) -> i64 {
@@ -67,6 +74,7 @@ pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
             change_tag_id(&mut daylio.day_entries, tag, id_generator.next());
         }
     }
+    drop(id_generator);
 
     let mut merged = daylio1.clone();
     merged
@@ -138,13 +146,14 @@ pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
     }
 
     // ids start at 1
-    let mut id_generator = IdGenerator::new(1);
     // first handle predefined moods
     for mood in merged.custom_moods.iter_mut() {
         if mood.predefined_name_id != -1 {
-            change_mood_id(&mut merged.day_entries, mood, id_generator.next());
+            change_mood_id(&mut merged.day_entries, mood, mood.predefined_name_id);
         }
     }
+
+    let mut id_generator = IdGenerator::with_start(1, 6);
 
     // then handle custom moods
     // order is important, so we need to sort by mood_group_id and predefined comes first
