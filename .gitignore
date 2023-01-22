@@ -160,3 +160,7 @@ target/
 
 # private data
 localdata/**/*
+# Devenv
+.devenv*
+devenv.local.nix
+
