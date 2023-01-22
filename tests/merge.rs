@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use color_eyre::Result;
-    use daylio_tools::{merge, CustomMood, DayEntry, Daylio, Tag};
+    use daylio_tools::{load_daylio_backup, merge, CustomMood, DayEntry, Daylio, Tag};
 
     fn base_input() -> Daylio {
         Daylio {
@@ -190,6 +190,20 @@ mod tests {
                 })
                 .collect();
         }
+
+        let merged = merge(input1, input2);
+
+        assert_eq!(merged, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn real_world_data() -> Result<()> {
+        let input1 = load_daylio_backup("tests/data/old.daylio".as_ref())?;
+        let input2 = load_daylio_backup("tests/data/new.daylio".as_ref())?;
+
+        let expected = load_daylio_backup("tests/data/merged.daylio".as_ref())?;
 
         let merged = merge(input1, input2);
 
