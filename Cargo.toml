@@ -5,6 +5,14 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lib]
+name = "daylio_tools"
+path = "src/lib.rs"
+
+[[bin]]
+name = "daylio_tools"
+path = "src/main.rs"
+
 [dependencies]
 base64 = "0.21.0"
 color-eyre = { version = "0.6.2", default-features = false }
