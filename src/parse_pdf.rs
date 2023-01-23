@@ -166,11 +166,7 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
     let mut parser = tuple((
         preceded(parse_header, parse_stat_lines),
-        many_till(
-            alt((parse_page_number.map(|_| None), parse_day_entry.map(Some))),
-            eof,
-        )
-        .map(|(entries, _)| entries.into_iter().flatten().collect()),
+        many_till(parse_day_entry, eof).map(|(entries, _)| entries),
     ));
 
     let result = parser(input)
