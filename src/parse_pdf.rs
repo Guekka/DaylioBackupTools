@@ -39,7 +39,10 @@ fn extract_txt(pdf: &Path) -> Result<String> {
 }
 
 fn read_line(input: &str) -> IResult<&str, &str> {
-    terminated(take_till(|c| c == '\n'), line_ending)(input)
+    map(
+        terminated(take_till(|c| c == '\n'), line_ending),
+        |line: &str| line.trim(),
+    )(input)
 }
 
 fn parse_header(input: &str) -> IResult<&str, Vec<&str>> {
