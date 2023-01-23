@@ -29,7 +29,6 @@ struct Tag {
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedPdf {
     day_entries: Vec<ProcessedDayEntry>,
-    original_moods: Vec<StatLine>,
     moods: Vec<Mood>,
     tags: Vec<Tag>,
 }
@@ -100,7 +99,14 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
         }
     }
 
-    (tags.into_iter().collect(), moods.into_iter().collect())
+    // sort moods according to the order they appear in the PDF
+    let mut moods: Vec<Mood> = moods.into_iter().collect();
+    moods.sort_by_key(|mood| parsed.stats.iter().position(|stat| stat.name == mood.name));
+    for (i, mood) in moods.iter_mut().enumerate() {
+        mood.id = i as i64;
+    }
+
+    (tags.into_iter().collect(), moods)
 }
 
 impl From<ParsedPdf> for ProcessedPdf {
@@ -129,13 +135,8 @@ impl From<ParsedPdf> for ProcessedPdf {
             })
             .collect();
 
-        // preserve original moods for their order
-        let mut original_moods = parsed.stats;
-        original_moods.truncate(moods.len());
-
         ProcessedPdf {
             day_entries,
-            original_moods,
             moods,
             tags,
         }
@@ -236,8 +237,8 @@ mod tests {
                 },
             ],
             stats: vec![
-                StatLine::with_name("Happy"),
                 StatLine::with_name("Sad"),
+                StatLine::with_name("Happy"),
                 StatLine::with_name("some tag"),
                 StatLine::with_name("another tag"),
                 StatLine::with_name("yet another tag"),
@@ -249,26 +250,25 @@ mod tests {
             day_entries: vec![
                 ProcessedDayEntry {
                     date: parse_date(&parsed.day_entries[0]).unwrap(),
-                    mood: 0,
+                    mood: 1,
                     tags: vec![],
                     note: "This is a note".to_owned(),
                 },
                 ProcessedDayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    mood: 1,
+                    mood: 0,
                     tags: vec![0, 1, 2],
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
-            original_moods: vec![StatLine::with_name("Happy"), StatLine::with_name("Sad")],
             moods: vec![
                 Mood {
                     id: 0,
-                    name: "Happy".to_owned(),
+                    name: "Sad".to_owned(),
                 },
                 Mood {
                     id: 1,
-                    name: "Sad".to_owned(),
+                    name: "Happy".to_owned(),
                 },
             ],
             tags: vec![
