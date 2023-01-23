@@ -10,7 +10,7 @@ use std::fmt::{Debug, Display};
 use nom::branch::alt;
 use nom::character::complete::{digit1, line_ending, multispace0, space0};
 use nom::combinator::{eof, map, map_res, opt};
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{delimited, pair, preceded, terminated, tuple};
 use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
 use std::path::Path;
@@ -101,42 +101,50 @@ fn parse_day_hour(input: &str) -> IResult<&str, &str> {
 /// There may be a title, but there's no way for us to know if there is one
 /// So we count it as part of the body
 fn parse_note_body(input: &str) -> IResult<&str, Vec<&str>> {
+    let end = alt((
+        map(count(line_ending, 2), |_| ()),
+        map(pair(multispace0, eof), |_| ()),
+    ));
+
     map(
         many_till(
             alt((
                 parse_page_number.map(|_| None), // page numbers can be intertwined with the note
                 read_line.map(Some),
             )),
-            count(line_ending, 2),
+            end,
         ),
-        |(lines, _)| lines.into_iter().flatten().collect(),
+        |(lines, _)| {
+            lines
+                .into_iter()
+                .flatten()
+                .filter(|l| !l.is_empty())
+                .collect()
+        },
     )(input)
 }
 
 /// A day entry looks like this:
+/// ```raw
 /// May 22, 2022              RAD
 /// Sunday 8 53 PM
 ///                              Tag 2 NWR    Tag 4 HBK   Tag 5 IGN     Tag 10 OKU     Tag 23 CLN
 ///                              Tag 14 NEU   Tag 21 NUD    Tag 22 ITV
 ///                     Optional Note title 35 XLA
 ///                     Note 35 AHM
+/// ```
 fn parse_day_entry(input: &str) -> IResult<&str, DayEntry> {
     map(
-        tuple((
-            parse_date,
-            parse_mood,
-            parse_day_hour,
-            preceded(opt(line_ending), opt(parse_note_body)),
-        )),
+        tuple((parse_date, parse_mood, parse_day_hour, opt(parse_note_body))),
         |(date, mood, day_hour, note)| {
             let note = note
                 .map(|lines| lines.into_iter().map(ToOwned::to_owned).collect())
                 .unwrap_or_default();
 
             DayEntry {
-                date: date.to_string(),
+                date: date.to_owned(),
                 mood: mood.to_owned(),
-                day_hour: day_hour.to_string(),
+                day_hour: day_hour.to_owned(),
                 note,
             }
         },
@@ -747,13 +755,7 @@ pub(crate) mod tests {
                 date: "April 27, 2022".to_owned(),
                 day_hour: "Wednesday 5 30 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
-                note: vec![],
-            },
-            DayEntry {
-                date: "".to_owned(),
-                day_hour: "Note 63 DWN".to_owned(),
-                mood: "Note title 63 FSU".to_owned(),
-                note: vec![],
+                note: vec!["Note title 63 FSU".to_owned(), "Note 63 DWN".to_owned()],
             },
         ];
 
