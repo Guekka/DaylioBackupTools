@@ -4,6 +4,7 @@ use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
 use chrono::NaiveDateTime;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -13,13 +14,13 @@ struct ProcessedDayEntry {
     note: String,
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Default)]
 struct Mood {
     id: i64,
     name: String,
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Default)]
 struct Tag {
     id: i64,
     name: String,
@@ -80,48 +81,53 @@ fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>
     (note.join("\n"), entry_tags)
 }
 
-impl From<ParsedPdf> for ProcessedPdf {
-    fn from(parsed: ParsedPdf) -> Self {
-        let mut day_entries: Vec<ProcessedDayEntry> = Vec::with_capacity(parsed.day_entries.len());
-        let mut moods: Vec<Mood> = Vec::with_capacity(parsed.stats.len());
-        let mut tags: Vec<Tag> = Vec::with_capacity(parsed.stats.len());
+fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
+    let mut moods: HashSet<Mood> = HashSet::with_capacity(parsed.stats.len());
+    let mut tags: HashSet<Tag> = HashSet::with_capacity(parsed.stats.len());
 
-        for entry in parsed.day_entries {
-            let date = parse_date(&entry).unwrap();
-            let (note, entry_tags) = extract_tags(&entry, &parsed.stats);
+    for entry in &parsed.day_entries {
+        let (_, entry_tags) = extract_tags(entry, &parsed.stats);
+        moods.insert(Mood {
+            id: moods.len() as i64,
+            name: entry.mood.clone(),
+        });
 
-            let mood = if let Some(mood_pos) = moods.iter().position(|x| x.name == entry.mood) {
-                moods[mood_pos].id
-            } else {
-                moods.push(Mood {
-                    id: moods.len() as i64,
-                    name: entry.mood,
-                });
-                moods.len() as i64 - 1
-            };
-
-            let tags = entry_tags
-                .into_iter()
-                .map(|tag| {
-                    if let Some(tag_pos) = tags.iter().position(|x| x.name == tag) {
-                        tags[tag_pos].id
-                    } else {
-                        tags.push(Tag {
-                            id: tags.len() as i64,
-                            name: tag.clone(),
-                        });
-                        tags.len() as i64 - 1
-                    }
-                })
-                .collect();
-
-            day_entries.push(ProcessedDayEntry {
-                date,
-                mood,
-                tags,
-                note,
+        for tag in entry_tags {
+            tags.insert(Tag {
+                id: tags.len() as i64,
+                name: tag,
             });
         }
+    }
+
+    (tags.into_iter().collect(), moods.into_iter().collect())
+}
+
+impl From<ParsedPdf> for ProcessedPdf {
+    fn from(parsed: ParsedPdf) -> Self {
+        let (tags, moods) = list_tags_and_moods(&parsed);
+
+        let day_entries = parsed
+            .day_entries
+            .into_iter()
+            .map(|entry| {
+                let date = parse_date(&entry).unwrap();
+                let (note, entry_tags) = extract_tags(&entry, &parsed.stats);
+
+                let entry_mood = moods.iter().find(|x| x.name == entry.mood).unwrap().id;
+                let entry_tags = entry_tags
+                    .iter()
+                    .map(|x| tags.iter().find(|y| y.name == *x).unwrap().id)
+                    .collect();
+
+                ProcessedDayEntry {
+                    date,
+                    mood: entry_mood,
+                    tags: entry_tags,
+                    note,
+                }
+            })
+            .collect();
 
         // preserve original moods for their order
         let mut original_moods = parsed.stats;
