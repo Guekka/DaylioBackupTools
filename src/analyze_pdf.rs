@@ -1,7 +1,8 @@
 //! This module interprets the parsed PDF data into a Daylio struct.
 
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
-use chrono::NaiveDateTime;
+use crate::{daylio, merge, Daylio};
+use chrono::{Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
 use std::collections::BTreeSet;
@@ -27,7 +28,7 @@ struct Tag {
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
-struct ProcessedPdf {
+pub(crate) struct ProcessedPdf {
     day_entries: Vec<ProcessedDayEntry>,
     moods: Vec<Mood>,
     tags: Vec<Tag>,
@@ -140,6 +141,58 @@ impl From<ParsedPdf> for ProcessedPdf {
             moods,
             tags,
         }
+    }
+}
+
+impl From<Mood> for daylio::CustomMood {
+    fn from(mood: Mood) -> Self {
+        daylio::CustomMood {
+            id: mood.id,
+            predefined_name_id: if mood.name.is_empty() { 0 } else { -1 },
+            custom_name: mood.name,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<Tag> for daylio::Tag {
+    fn from(tag: Tag) -> Self {
+        daylio::Tag {
+            id: tag.id,
+            name: tag.name,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<ProcessedDayEntry> for daylio::DayEntry {
+    fn from(entry: ProcessedDayEntry) -> Self {
+        daylio::DayEntry {
+            minute: entry.date.minute() as i64,
+            hour: entry.date.hour() as i64,
+            day: entry.date.day() as i64,
+            month: entry.date.month() as i64,
+            year: entry.date.year() as i64,
+            datetime: entry.date.timestamp_millis(),
+            mood: entry.mood,
+            note: entry.note,
+            tags: entry.tags,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<ProcessedPdf> for Daylio {
+    fn from(pdf: ProcessedPdf) -> Self {
+        merge(
+            Default::default(),
+            Daylio {
+                custom_moods: pdf.moods.into_iter().map(From::from).collect(),
+                tags: pdf.tags.into_iter().map(From::from).collect(),
+                day_entries: pdf.day_entries.into_iter().map(From::from).collect(),
+                ..Default::default()
+            },
+        )
     }
 }
 
