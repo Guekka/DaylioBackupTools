@@ -39,8 +39,8 @@ pub(crate) struct DayEntry {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ParsedPdf {
-    stats: Vec<StatLine>,
-    day_entries: Vec<DayEntry>,
+    pub(crate) stats: Vec<StatLine>,
+    pub(crate) day_entries: Vec<DayEntry>,
 }
 
 fn extract_txt(pdf: &Path) -> Result<String> {

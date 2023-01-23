@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 base64 = "0.21.0"
+chrono = { version= "0.4.23", default-features = false, features = ["std"] }
 color-eyre = { version = "0.6.2", default-features = false }
 nanorand = "0.7.0"
 nom = "7.1.3"
