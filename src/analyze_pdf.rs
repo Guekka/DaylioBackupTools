@@ -4,7 +4,7 @@ use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
 use chrono::NaiveDateTime;
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -14,13 +14,13 @@ struct ProcessedDayEntry {
     note: String,
 }
 
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Default)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
 struct Mood {
     id: i64,
     name: String,
 }
 
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Default)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
 struct Tag {
     id: i64,
     name: String,
@@ -82,8 +82,8 @@ fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>
 }
 
 fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
-    let mut moods: HashSet<Mood> = HashSet::with_capacity(parsed.stats.len());
-    let mut tags: HashSet<Tag> = HashSet::with_capacity(parsed.stats.len());
+    let mut moods: BTreeSet<Mood> = BTreeSet::new();
+    let mut tags: BTreeSet<Tag> = BTreeSet::new();
 
     for entry in &parsed.day_entries {
         let (_, entry_tags) = extract_tags(entry, &parsed.stats);
