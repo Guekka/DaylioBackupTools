@@ -74,7 +74,6 @@ pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
             change_tag_id(&mut daylio.day_entries, tag, id_generator.next());
         }
     }
-    drop(id_generator);
 
     let mut merged = daylio1.clone();
     merged
