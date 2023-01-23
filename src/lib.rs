@@ -1,3 +1,4 @@
+mod analyze_pdf;
 mod anonymize;
 mod daylio;
 mod load_store;
