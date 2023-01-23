@@ -63,7 +63,7 @@ fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
 
 fn parse_stat_lines(input: &str) -> IResult<&str, Vec<StatLine>> {
     map(
-        many_till(parse_stat_line, count(line_ending, 3)),
+        many_till(parse_stat_line, count(line_ending, 4)),
         |(tags, _)| tags,
     )(input)
 }
@@ -181,7 +181,7 @@ pub(crate) mod tests {
 
         let parsed = parse_stat_lines(input).unwrap();
 
-        let expected_in = &input[660..];
+        let expected_in = &input[661..];
         let expected_parsed = expected_parsed_tags();
 
         assert_eq!(parsed.0, expected_in);
