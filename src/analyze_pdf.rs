@@ -182,6 +182,7 @@ impl From<Mood> for daylio::CustomMood {
             } else {
                 mood.name
             },
+            mood_group_id: mood.group,
             ..Default::default()
         }
     }
