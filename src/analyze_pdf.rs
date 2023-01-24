@@ -82,21 +82,25 @@ fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>
 }
 
 fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
-    let mut moods: BTreeSet<Mood> = BTreeSet::new();
-    let mut tags: BTreeSet<Tag> = BTreeSet::new();
+    let mut moods: Vec<Mood> = Vec::new();
+    let mut tags: Vec<Tag> = Vec::new();
 
     for entry in &parsed.day_entries {
         let (_, entry_tags) = extract_tags(entry, &parsed.stats);
-        moods.insert(Mood {
-            id: moods.len() as i64,
-            name: entry.mood.clone(),
-        });
+        if !moods.iter().any(|m| m.name == entry.mood) {
+            moods.push(Mood {
+                id: moods.len() as i64,
+                name: entry.mood.clone(),
+            });
+        }
 
         for tag in entry_tags {
-            tags.insert(Tag {
-                id: tags.len() as i64,
-                name: tag,
-            });
+            if !tags.iter().any(|t| t.name == tag) {
+                tags.push(Tag {
+                    id: tags.len() as i64,
+                    name: tag,
+                });
+            }
         }
     }
 
