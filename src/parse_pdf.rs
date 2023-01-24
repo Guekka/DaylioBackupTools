@@ -10,7 +10,7 @@ use std::fmt::{Debug, Display};
 use nom::branch::alt;
 use nom::character::complete::{digit1, line_ending, multispace0, space0};
 use nom::combinator::{eof, map, map_res, opt};
-use nom::sequence::{delimited, pair, preceded, terminated, tuple};
+use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
 use std::path::Path;
@@ -100,27 +100,34 @@ fn parse_day_hour(input: &str) -> IResult<&str, &str> {
 
 /// There may be a title, but there's no way for us to know if there is one
 /// So we count it as part of the body
+/// Pseudo-regex
+/// ```raw
+/// (\n{0, 1}([^\n]{1, n}, \n){1, n}\n{2, 3})
+/// ```
 fn parse_note_body(input: &str) -> IResult<&str, Vec<&str>> {
-    let end = alt((
-        map(count(line_ending, 2), |_| ()),
-        map(pair(multispace0, eof), |_| ()),
+    // The body is a series of lines, separated by line endings
+    let main = alt((
+        parse_page_number.map(|_| None), // page numbers can be intertwined with the note
+        read_line.map(Some),
     ));
 
-    map(
-        many_till(
-            alt((
-                parse_page_number.map(|_| None), // page numbers can be intertwined with the note
-                read_line.map(Some),
-            )),
-            end,
-        ),
-        |(lines, _)| {
-            lines
-                .into_iter()
-                .flatten()
-                .filter(|l| !l.is_empty())
-                .collect()
-        },
+    // if two line endings are found, we're done
+    if (count(line_ending::<&str, nom::error::VerboseError<&str>>, 2)(input)).is_ok() {
+        return multispace0(input).map(|(i, _)| (i, vec![]));
+    }
+
+    fn remove_empty<T>((lines, _): (Vec<Option<&str>>, T)) -> Vec<&str> {
+        lines
+            .into_iter()
+            .flatten()
+            .filter(|l| !l.is_empty())
+            .collect()
+    }
+
+    delimited(
+        multispace0,
+        many_till(main, line_ending.or(eof)).map(remove_empty),
+        multispace0,
     )(input)
 }
 
@@ -133,6 +140,16 @@ fn parse_note_body(input: &str) -> IResult<&str, Vec<&str>> {
 ///                     Optional Note title 35 XLA
 ///                     Note 35 AHM
 /// ```
+/// But it may also have no body
+/// ```raw
+/// May 22, 2022              RAD
+/// Sunday 8 53 PM
+/// ```
+/// Seen as a pseudo regex:
+/// ```raw
+/// date {2, n}mood\nday hour\n(\n\n|\n{0, 1}([^\n]{1, n}, \n){1, n}\n{2, 3})
+/// ```
+/// body can also be ended by \nEOF
 fn parse_day_entry(input: &str) -> IResult<&str, DayEntry> {
     map(
         tuple((parse_date, parse_mood, parse_day_hour, opt(parse_note_body))),
@@ -191,6 +208,112 @@ pub(crate) mod tests {
     use super::*;
     use pretty_assertions_sorted::{assert_eq, assert_eq_sorted};
     use std::io::Read;
+
+    const SMALL_PDF_PATH_ENGLISH: &str = "tests/data/official/english.pdf";
+
+    #[test]
+    fn test_parse_small_pdf() -> Result<()> {
+        // syntax:
+
+        let actual = parse_pdf(SMALL_PDF_PATH_ENGLISH.as_ref())?;
+
+        let expected = ParsedPdf {
+            stats: vec![
+                StatLine {
+                    name: "rad".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "famille".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "manger sain".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "null".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "rendez vous".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "films".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "awful".to_owned(),
+                    count: 2,
+                },
+                StatLine {
+                    name: "exercice".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "shopping".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "ménage".to_owned(),
+                    count: 2,
+                },
+                StatLine {
+                    name: "sport".to_owned(),
+                    count: 1,
+                },
+            ],
+            day_entries: vec![
+                DayEntry {
+                    date: "January 24, 2023".to_owned(),
+                    day_hour: "Tuesday 11 36 AM".to_owned(),
+                    mood: "AWFUL".to_owned(),
+                    note: vec![],
+                }, DayEntry {
+                    date: "January 24, 2023".to_owned(),
+                    day_hour: "Tuesday 9 59 AM".to_owned(),
+                    mood: "RAD".to_owned(),
+                    note: vec![
+                        "famille       rendez vous        exercice         sport       ménage".to_owned(),
+                        "Note title".to_owned(),
+                        "Note body".to_owned(),
+                    ],
+                },
+                DayEntry {
+                    date: "January 4, 2023".to_owned(),
+                    day_hour: "Wednesday 8 00 PM".to_owned(),
+                    mood: "AWFUL".to_owned(),
+                    note: vec![
+                        "manger sain          films     ménage          shopping".to_owned(),
+                    ],
+                },
+                DayEntry {
+                    date: "May 16, 2015".to_owned(),
+                    day_hour: "Saturday 8 00 PM".to_string(),
+                    mood: "NULL".to_string(),
+                    note: vec!["No tag".to_owned(),
+                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
+                               "its body is really long".to_owned(),
+                               "This is an old note. It has no title, but its body is really long".to_owned(),
+                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
+                               "its body is really long".to_owned(),
+                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
+                               "its body is really long".to_owned(),
+                               "This is an old note. It has no title, but its body is really long".to_owned(),
+                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
+                               "its body is really long".to_owned(),
+                    ],
+                },
+            ],
+        };
+
+        assert_eq_sorted!(actual, expected);
+
+        Ok(())
+    }
+
+    // All the tests below are for the large PDF
 
     const TEST_PDF: &str = "tests/data/new.pdf";
     const TEST_PDF_TXT: &'static str = "tests/data/new_extracted.txt";
