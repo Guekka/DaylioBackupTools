@@ -30,7 +30,7 @@ pub struct Daylio {
 
 impl Default for Daylio {
     fn default() -> Self {
-        let moods = (1..5)
+        let moods = (1..=5)
             .map(|i| CustomMood {
                 id: i,
                 icon_id: i,
@@ -107,15 +107,7 @@ impl Default for Daylio {
                 is_expanded: true,
                 order: 1,
             }],
-            metadata: Metadata {
-                number_of_entries: 0,
-                created_at: 0,
-                is_auto_backup: false,
-                platform: "android".to_owned(),
-                android_version: 15,
-                number_of_photos: 0,
-                photos_size: 0,
-            },
+            metadata: Default::default(),
             mood_icons_pack_id: 1,
             preferred_mood_icons_ids_for_mood_ids_for_icons_pack: serde_json::json!(
                 {
@@ -740,7 +732,7 @@ pub struct TagGroup {
     pub order: i64,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metadata {
     #[serde(rename = "number_of_entries")]
@@ -756,6 +748,20 @@ pub struct Metadata {
     pub number_of_photos: i64,
     #[serde(rename = "photos_size")]
     pub photos_size: i64,
+}
+
+impl Default for Metadata {
+    fn default() -> Self {
+        Metadata {
+            number_of_entries: 0,
+            created_at: 0,
+            is_auto_backup: false,
+            platform: "android".to_owned(),
+            android_version: 15,
+            number_of_photos: 0,
+            photos_size: 0,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
