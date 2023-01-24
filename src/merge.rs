@@ -114,13 +114,6 @@ impl Daylio {
     }
 
     pub fn sanitize(&mut self) {
-        // finally, sort by date and update ids
-        self.custom_moods
-            .sort_by_key(|x| (x.mood_group_id, x.created_at));
-        self.tags.sort_by_key(|x| x.created_at);
-        self.day_entries
-            .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
-
         // fix: sometimes custom moods have a custom
         // name and a predefined name
         // we keep custom name and remove predefined name
@@ -130,17 +123,16 @@ impl Daylio {
             }
         }
 
-        // ids start at 1
-        // first handle predefined moods
+        // predefined moods have to have the same id as the predefined name
         for mood in self.custom_moods.iter_mut() {
             if mood.predefined_name_id != -1 {
                 Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
             }
         }
 
+        // we start at 6 because the first 5 predefined moods are reserved
         let mut id_generator = IdGenerator::with_start(1, 6);
 
-        // then handle custom moods
         // order is important, so we need to sort by mood_group_id and predefined comes first
         self.custom_moods
             .sort_by_key(|x| (x.mood_group_id, -x.predefined_name_id));
@@ -150,7 +142,7 @@ impl Daylio {
             }
         }
 
-        // each mood_group_id has an order, so we need to update it
+        // each mood group has an order, so we need to update it
         for i in 0..self.custom_moods.len() {
             if i == 0
                 || self.custom_moods[i].mood_group_id != self.custom_moods[i - 1].mood_group_id
@@ -162,12 +154,15 @@ impl Daylio {
             }
         }
 
+        self.tags.sort_by_key(|x| x.created_at);
         let mut id_generator = IdGenerator::new(1);
         for (i, mut tag) in self.tags.iter_mut().enumerate() {
             Daylio::change_tag_id(&mut self.day_entries, tag, id_generator.next());
             tag.order = i as i64 + 1;
         }
 
+        self.day_entries
+            .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
         let mut id_generator = IdGenerator::new(1);
         for entry in self.day_entries.iter_mut() {
             entry.id = id_generator.next();
