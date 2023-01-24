@@ -5,7 +5,6 @@ use crate::{daylio, merge, Daylio};
 use chrono::{Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use std::collections::BTreeSet;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -19,6 +18,8 @@ struct ProcessedDayEntry {
 struct Mood {
     id: i64,
     name: String,
+    group: i64,
+    predefined: bool,
 }
 
 #[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
@@ -81,6 +82,29 @@ fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>
     (note.join("\n"), entry_tags)
 }
 
+fn predefined_mood_idx(custom_name: &str) -> Option<i64> {
+    match custom_name.to_lowercase().as_ref() {
+        "super" | "rad" => Some(1),
+        "bien" | "good" => Some(2),
+        "mouais" | "meh" => Some(3),
+        "mauvais" | "bad" => Some(4),
+        "horrible" | "awful" => Some(5),
+        _ => None,
+    }
+}
+
+fn update_mood_category(moods: &mut [Mood]) {
+    let mut prev_id = None;
+    for mood in moods {
+        if let Some(idx) = predefined_mood_idx(&mood.name) {
+            mood.id = idx;
+            mood.predefined = true;
+            prev_id = Some(idx);
+        }
+        mood.group = prev_id.unwrap_or(0);
+    }
+}
+
 fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
     let mut moods: Vec<Mood> = Vec::new();
     let mut tags: Vec<Tag> = Vec::new();
@@ -91,6 +115,8 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
             moods.push(Mood {
                 id: moods.len() as i64,
                 name: entry.mood.clone(),
+                group: 0,
+                predefined: false,
             });
         }
 
@@ -107,9 +133,7 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
     // sort moods according to the order they appear in the PDF
     let mut moods: Vec<Mood> = moods.into_iter().collect();
     moods.sort_by_key(|mood| parsed.stats.iter().position(|stat| stat.name == mood.name));
-    for (i, mood) in moods.iter_mut().enumerate() {
-        mood.id = i as i64;
-    }
+    update_mood_category(&mut moods);
 
     (tags.into_iter().collect(), moods)
 }
@@ -152,8 +176,12 @@ impl From<Mood> for daylio::CustomMood {
     fn from(mood: Mood) -> Self {
         daylio::CustomMood {
             id: mood.id,
-            predefined_name_id: if mood.name.is_empty() { 0 } else { -1 },
-            custom_name: mood.name,
+            predefined_name_id: if mood.predefined { mood.id } else { -1 },
+            custom_name: if mood.predefined {
+                String::new()
+            } else {
+                mood.name
+            },
             ..Default::default()
         }
     }
@@ -279,13 +307,19 @@ mod tests {
                 DayEntry {
                     date: "August 2, 2022".to_owned(),
                     day_hour: "Monday 8 45 PM".to_owned(),
-                    mood: "Happy".to_owned(),
+                    mood: "rad".to_owned(),
                     note: vec!["This is a note".to_owned()],
                 },
                 DayEntry {
                     date: "August 3, 2022".to_owned(),
+                    day_hour: "Tuesday 8 45 AM".to_owned(),
+                    mood: "rad".to_owned(),
+                    note: vec!["This is a note²".to_owned()],
+                },
+                DayEntry {
+                    date: "August 3, 2022".to_owned(),
                     day_hour: "Tuesday 9 00 AM".to_owned(),
-                    mood: "Sad".to_owned(),
+                    mood: "good".to_owned(),
                     note: vec![
                         "some tag   another tag    yet another tag ".to_owned(),
                         "Note title".to_owned(),
@@ -294,8 +328,8 @@ mod tests {
                 },
             ],
             stats: vec![
-                StatLine::with_name("Sad"),
-                StatLine::with_name("Happy"),
+                StatLine::with_name("rad"),
+                StatLine::with_name("good"),
                 StatLine::with_name("some tag"),
                 StatLine::with_name("another tag"),
                 StatLine::with_name("yet another tag"),
@@ -313,19 +347,29 @@ mod tests {
                 },
                 ProcessedDayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    mood: 0,
+                    mood: 1,
+                    tags: vec![],
+                    note: "This is a note²".to_owned(),
+                },
+                ProcessedDayEntry {
+                    date: parse_date(&parsed.day_entries[2]).unwrap(),
+                    mood: 2,
                     tags: vec![0, 1, 2],
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
             moods: vec![
                 Mood {
-                    id: 0,
-                    name: "Sad".to_owned(),
+                    id: 1,
+                    name: "rad".to_owned(),
+                    group: 1,
+                    predefined: true,
                 },
                 Mood {
-                    id: 1,
-                    name: "Happy".to_owned(),
+                    id: 2,
+                    name: "good".to_owned(),
+                    group: 2,
+                    predefined: true,
                 },
             ],
             tags: vec![
