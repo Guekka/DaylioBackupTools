@@ -1,8 +1,9 @@
+use core::default::Default;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use serde_json::Value;
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Daylio {
     pub version: i64,
@@ -26,6 +27,117 @@ pub struct Daylio {
     pub reminders: Vec<Reminder>,
     pub writing_templates: Vec<WritingTemplate>,
     pub mood_icons_default_free_pack_id: i64,
+}
+
+impl Default for Daylio {
+    fn default() -> Self {
+        let moods = (1..5)
+            .map(|i| CustomMood {
+                id: i,
+                icon_id: i,
+                predefined_name_id: i,
+                mood_group_id: i,
+                ..Default::default()
+            })
+            .collect();
+
+        Self {
+            version: 15,
+            is_reminder_on: Default::default(),
+            custom_moods: moods,
+            tags: vec![],
+            day_entries: vec![],
+            achievements: vec![],
+            days_in_row_longest_chain: 0,
+            goals: vec![],
+            prefs: vec![
+                Pref {
+                    key: "BACKUP_REMINDER_DONT_SHOW_AGAIN".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 0.into(),
+                },
+                Pref {
+                    key: "LAST_DAYS_IN_ROWS_NUMBER".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 0.into(),
+                },
+                Pref {
+                    key: "DAYS_IN_ROW_LONGEST_CHAIN".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 0.into(),
+                },
+                Pref {
+                    key: "LAST_ENTRY_CREATION_TIME".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 0.into(),
+                },
+                Pref {
+                    key: "COLOR_PALETTE_DEFAULT_CODE".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 1.into(),
+                },
+                Pref {
+                    key: "PREDEFINED_MOODS_VARIANT".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 1.into(),
+                },
+                Pref {
+                    key: "ONBOARDING_USER_PROPERTY".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: "finished".into(),
+                },
+                Pref {
+                    key: "WAS_EMOJI_SCREEN_VISITED".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 0.into(),
+                },
+                Pref {
+                    key: "PIN_LOCK_STATE".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 2.into(),
+                },
+                Pref {
+                    key: "ARE_MEMORIES_VISIBLE_TO_USER".to_owned(),
+                    pref_name: "default".to_owned(),
+                    value: 1.into(),
+                },
+            ],
+            tag_groups: vec![TagGroup {
+                id: 1,
+                name: "Default".to_owned(),
+                is_expanded: true,
+                order: 1,
+            }],
+            metadata: Metadata {
+                number_of_entries: 0,
+                created_at: 0,
+                is_auto_backup: false,
+                platform: "android".to_owned(),
+                android_version: 15,
+                number_of_photos: 0,
+                photos_size: 0,
+            },
+            mood_icons_pack_id: 1,
+            preferred_mood_icons_ids_for_mood_ids_for_icons_pack:
+                PreferredMoodIconsIdsForMoodIdsForIconsPack {
+                    n1: N1 {
+                        n1: 1,
+                        n3: 3,
+                        n2: 2,
+                        n8: 68,
+                        n5: 5,
+                        n4: 4,
+                        n7: 12,
+                    },
+                },
+            assets: vec![],
+            goal_entries: vec![],
+            goal_success_weeks: vec![],
+            reminders: vec![],
+            writing_templates: vec![],
+            mood_icons_default_free_pack_id: 1,
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
