@@ -204,7 +204,7 @@ impl From<ProcessedDayEntry> for daylio::DayEntry {
             minute: entry.date.minute() as i64,
             hour: entry.date.hour() as i64,
             day: entry.date.day() as i64,
-            month: entry.date.month() as i64,
+            month: entry.date.month() as i64 - 1, // month is 0-indexed in Daylio
             year: entry.date.year() as i64,
             datetime: entry.date.timestamp_millis(),
             mood: entry.mood,
@@ -391,6 +391,6 @@ mod tests {
 
         let processed = ProcessedPdf::from(parsed);
 
-        pretty_assertions_sorted::assert_eq!(processed, expected);
+        assert_eq!(processed, expected);
     }
 }
