@@ -2,8 +2,7 @@
 
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
 use crate::{daylio, merge, Daylio};
-use chrono::{Datelike, NaiveDateTime, Timelike};
-use color_eyre::eyre::eyre;
+use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 use color_eyre::Result;
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -35,42 +34,8 @@ pub(crate) struct ProcessedPdf {
     tags: Vec<Tag>,
 }
 
-/// differences between english and french:
-/// - month names
-/// - "month day, year" becomes "day month year" in french
-/// - 24 hour clock
-fn convert_french_date(date: String) -> String {
-    let date = date.to_lowercase();
-    let month_dict = [
-        ("janvier", "january"),
-        ("février", "february"),
-        ("mars", "march"),
-        ("avril", "april"),
-        ("mai", "may"),
-        ("juin", "june"),
-        ("juillet", "july"),
-        ("août", "august"),
-        ("septembre", "september"),
-        ("octobre", "october"),
-        ("novembre", "november"),
-        ("décembre", "december"),
-    ];
-
-    if !month_dict.iter().any(|(french, _)| date.contains(french)) {
-        return date; // not a french date
-    }
-
-    let mut date_parts = date.split_whitespace();
-    let day = date_parts.next().unwrap();
-
-    let en_month = date_parts.next().unwrap();
-    let month = month_dict
-        .iter()
-        .find(|(french, _)| *french == en_month)
-        .map(|(_, english)| english)
-        .unwrap();
-
-    let year = date_parts.next().unwrap();
+fn convert_24_hour_to_12_hour(time_str: &str) -> String {
+    let mut date_parts = time_str.split_whitespace();
 
     let mut hour = date_parts.next().unwrap().to_owned();
     let minute = date_parts.next().unwrap();
@@ -78,41 +43,39 @@ fn convert_french_date(date: String) -> String {
     // if the clock is 24h, we need to convert it to 12h
     let am_pm = date_parts.next().unwrap_or_else(|| {
         // 24h clock
-        if hour.parse::<u8>().unwrap() > 12 {
-            hour = (hour.parse::<u8>().unwrap() - 12).to_string();
+        let hour_int = hour.parse::<u8>().unwrap();
+        if hour_int > 12 {
+            hour = (hour_int - 12).to_string();
             "pm"
         } else {
             "am"
         }
     });
 
-    format!("{month} {day}, {year} {hour} {minute} {am_pm}")
-}
+    // sanitize hour
+    if hour == "00" {
+        hour = "12".to_owned();
+    }
 
-fn convert_language_date(date: String) -> String {
-    convert_french_date(date)
+    format!("{hour} {minute} {am_pm}")
 }
 
 fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
-    // Date looks like August 2, 2022
-    // Time looks like Monday 8 45 PM
+    let mut time_str = entry.day_hour.to_owned();
 
-    // Ignore the day of the week
-    let time_idx = entry
-        .day_hour
-        .find(' ')
-        .ok_or_else(|| eyre!("Invalid time"))?;
-    let time = &entry.day_hour[time_idx + 1..];
-
-    // August 2, 2022 8:45 PM
-    let mut time_str = format!("{} {}", entry.date, time);
+    // skip the day of the week
+    time_str = time_str
+        .split_whitespace()
+        .skip(1)
+        .collect::<Vec<_>>()
+        .join(" ");
 
     // sometimes hour is hour:minute, sometimes it's hour minute
     time_str = time_str.replace(':', " ");
-    time_str = convert_language_date(time_str);
 
-    NaiveDateTime::parse_from_str(&time_str, "%B %e, %Y %l %M %p")
-        .map_err(|e| eyre!("Failed to parse date: {}", e))
+    time_str = convert_24_hour_to_12_hour(&time_str);
+    let time = NaiveTime::parse_from_str(&time_str, "%l %M %p")?;
+    Ok(NaiveDateTime::new(entry.date, time))
 }
 
 /// Extracts tags from the note, and returns the note with the tags removed.
@@ -296,12 +259,12 @@ impl From<ProcessedPdf> for Daylio {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{Datelike, Timelike};
+    use chrono::{Datelike, NaiveDate, Timelike};
 
     #[test]
     fn test_parse_date() {
         let entry = DayEntry {
-            date: "August 2, 2022".to_owned(),
+            date: NaiveDate::from_ymd_opt(2022, 8, 2).unwrap(),
             day_hour: "Monday 8 45 PM".to_owned(),
             mood: String::new(),
             note: vec![],
@@ -327,7 +290,7 @@ mod tests {
     #[test]
     fn test_extract_tags() {
         let entry = DayEntry {
-            date: String::new(),
+            date: NaiveDate::from_ymd_opt(2022, 9, 2).unwrap(),
             day_hour: String::new(),
             mood: String::new(),
             note: vec![
@@ -370,19 +333,19 @@ mod tests {
         let parsed = ParsedPdf {
             day_entries: vec![
                 DayEntry {
-                    date: "August 2, 2022".to_owned(),
+                    date: NaiveDate::from_ymd_opt(2022, 9, 2).unwrap(),
                     day_hour: "Monday 8 45 PM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note".to_owned()],
                 },
                 DayEntry {
-                    date: "August 3, 2022".to_owned(),
+                    date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
                     day_hour: "Tuesday 8 45 AM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note²".to_owned()],
                 },
                 DayEntry {
-                    date: "August 3, 2022".to_owned(),
+                    date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
                     day_hour: "Tuesday 9 00 AM".to_owned(),
                     mood: "good".to_owned(),
                     note: vec![

@@ -85,7 +85,7 @@
   ],
   "tags": [
     {
-      "id": 1,
+      "id": 14,
       "name": "famille",
       "createdAt": 1674550757621,
       "icon": 41,
@@ -94,7 +94,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 2,
+      "id": 15,
       "name": "amis",
       "createdAt": 1674550757622,
       "icon": 94,
@@ -103,7 +103,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 3,
+      "id": 16,
       "name": "rendez-vous",
       "createdAt": 1674550757623,
       "icon": 53,
@@ -112,7 +112,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 4,
+      "id": 17,
       "name": "exercice",
       "createdAt": 1674550757624,
       "icon": 336,
@@ -121,7 +121,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 5,
+      "id": 18,
       "name": "sport",
       "createdAt": 1674550757625,
       "icon": 67,
@@ -130,7 +130,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 6,
+      "id": 19,
       "name": "dormir tôt",
       "createdAt": 1674550757626,
       "icon": 355,
@@ -139,7 +139,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 7,
+      "id": 20,
       "name": "manger sain",
       "createdAt": 1674550757627,
       "icon": 194,
@@ -148,7 +148,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 8,
+      "id": 21,
       "name": "détente",
       "createdAt": 1674550757628,
       "icon": 9,
@@ -157,7 +157,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 9,
+      "id": 22,
       "name": "films",
       "createdAt": 1674550757629,
       "icon": 91,
@@ -166,7 +166,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 10,
+      "id": 23,
       "name": "lecture",
       "createdAt": 1674550757630,
       "icon": 12,
@@ -175,7 +175,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 11,
+      "id": 24,
       "name": "jeu vidéo",
       "createdAt": 1674550757631,
       "icon": 30,
@@ -184,7 +184,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 12,
+      "id": 25,
       "name": "ménage",
       "createdAt": 1674550757632,
       "icon": 139,
@@ -193,7 +193,7 @@
       "id_tag_group": 0
     },
     {
-      "id": 13,
+      "id": 26,
       "name": "shopping",
       "createdAt": 1674550757633,
       "icon": 69,
@@ -204,7 +204,7 @@
   ],
   "dayEntries": [
     {
-      "id": 4,
+      "id": 2,
       "minute": 36,
       "hour": 11,
       "day": 24,
@@ -219,7 +219,7 @@
       "assets": []
     },
     {
-      "id": 1,
+      "id": 3,
       "minute": 59,
       "hour": 9,
       "day": 24,
@@ -231,16 +231,33 @@
       "note": "Note body",
       "note_title": "Note title",
       "tags": [
-        1,
-        3,
-        4,
-        5,
-        12
+        14,
+        16,
+        17,
+        18,
+        25
       ],
       "assets": []
     },
     {
-      "id": 2,
+      "id": 6,
+      "minute": 20,
+      "hour": 22,
+      "day": 11,
+      "month": 0,
+      "year": 2023,
+      "datetime": 1673472018050,
+      "timeZoneOffset": 3600000,
+      "mood": 3,
+      "note": "Hey, here's a note with<br><br><br>Linebreaks!<br><br>Because I love breaking parsers",
+      "note_title": "",
+      "tags": [
+        20
+      ],
+      "assets": []
+    },
+    {
+      "id": 4,
       "minute": 0,
       "hour": 20,
       "day": 4,
@@ -252,15 +269,15 @@
       "note": "",
       "note_title": "",
       "tags": [
-        7,
-        9,
-        12,
-        13
+        20,
+        22,
+        25,
+        26
       ],
       "assets": []
     },
     {
-      "id": 3,
+      "id": 5,
       "minute": 0,
       "hour": 20,
       "day": 16,
@@ -286,7 +303,7 @@
       "AC_ENTRIES_SEEN": false,
       "AC_ENTRIES_UNLOCKED_AT": 1674550995446,
       "AC_ENTRIES_CURRENT_LEVEL": 1,
-      "AC_ENTRIES_CURRENT_VALUE": 4,
+      "AC_ENTRIES_CURRENT_VALUE": 5,
       "AC_ENTRIES_LAST_SEEN_LEVEL": 1
     },
     {
@@ -294,7 +311,7 @@
       "AC_ENTRIES_BONUS_LVL_SEEN": false,
       "AC_ENTRIES_BONUS_LVL_UNLOCKED_AT": 0,
       "AC_ENTRIES_BONUS_LVL_CURRENT_LEVEL": 0,
-      "AC_ENTRIES_BONUS_LVL_CURRENT_VALUE": 4,
+      "AC_ENTRIES_BONUS_LVL_CURRENT_VALUE": 5,
       "AC_ENTRIES_BONUS_LVL_LAST_SEEN_LEVEL": 0
     },
     {
@@ -302,7 +319,7 @@
       "AC_ENTRIES_MILLENNIUMS_SEEN": false,
       "AC_ENTRIES_MILLENNIUMS_UNLOCKED_AT": 0,
       "AC_ENTRIES_MILLENNIUMS_CURRENT_LEVEL": 0,
-      "AC_ENTRIES_MILLENNIUMS_CURRENT_VALUE": 4,
+      "AC_ENTRIES_MILLENNIUMS_CURRENT_VALUE": 5,
       "AC_ENTRIES_MILLENNIUMS_LAST_SEEN_LEVEL": 0
     },
     {
@@ -310,7 +327,7 @@
       "AC_ENTRIES_ETERNITY_SEEN": false,
       "AC_ENTRIES_ETERNITY_UNLOCKED_AT": 0,
       "AC_ENTRIES_ETERNITY_CURRENT_LEVEL": 0,
-      "AC_ENTRIES_ETERNITY_CURRENT_VALUE": 4,
+      "AC_ENTRIES_ETERNITY_CURRENT_VALUE": 5,
       "AC_ENTRIES_ETERNITY_LAST_SEEN_LEVEL": 0
     },
     {
@@ -539,12 +556,7 @@
     {
       "key": "LAST_ENTRY_CREATION_TIME",
       "pref_name": "default",
-      "value": 1674556609612
-    },
-    {
-      "key": "COLOR_PALETTE_DEFAULT_CODE",
-      "pref_name": "default",
-      "value": 16
+      "value": 1674681662200
     },
     {
       "key": "PREDEFINED_MOODS_VARIANT",
@@ -557,15 +569,25 @@
       "value": "finished"
     },
     {
+      "key": "SUBSCRIPTION_PAGE_NUMBER_OF_VISITS",
+      "pref_name": "default",
+      "value": 2
+    },
+    {
       "key": "SUBSCRIPTION_IS_FREE_TRIAL_POSSIBLE",
       "pref_name": "default",
       "value": false
+    },
+    {
+      "key": "PIN_LOCK_STATE",
+      "pref_name": "default",
+      "value": 1
     }
   ],
   "tag_groups": [],
   "metadata": {
-    "number_of_entries": 4,
-    "created_at": 1674556623548,
+    "number_of_entries": 5,
+    "created_at": 1674681723216,
     "is_auto_backup": false,
     "platform": "android",
     "android_version": 15,
@@ -575,9 +597,14 @@
   "moodIconsPackId": 1,
   "preferredMoodIconsIdsForMoodIdsForIconsPack": {
     "1": {
-      "6": 6,
+      "1": 1,
+      "3": 3,
+      "2": 2,
+      "8": 14,
+      "5": 5,
+      "4": 4,
       "7": 14,
-      "8": 14
+      "6": 6
     }
   },
   "assets": [],
@@ -585,7 +612,7 @@
   "goalSuccessWeeks": [],
   "reminders": [
     {
-      "id": 1,
+      "id": 2,
       "hour": 20,
       "minute": 0,
       "state": 0,

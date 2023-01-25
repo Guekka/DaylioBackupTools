@@ -45,11 +45,11 @@ mod tests {
         // Unfortunately, the PDF format does not contain the mood group id, so it is guessed
         // In this case, the guess is wrong
         expected_moods.insert(
-            1,
+            3,
             CustomMood {
                 id: 6,
                 custom_name: "NULL".to_owned(),
-                mood_group_id: 1,
+                mood_group_id: 3,
                 mood_group_order: 1,
                 icon_id: 0,
                 predefined_name_id: -1,
@@ -164,16 +164,33 @@ mod tests {
                     note: "Note title\nNote body".to_owned(), // we lose separation between title and body
                     note_title: String::new(),
                     tags: vec![
-                        2,
-                        6,
                         1,
                         5,
                         8,
+                        2,
+                        6,
                     ],
                     assets: vec![],
                 },
                 DayEntry {
                     id: 3,
+                    minute: 20,
+                    hour: 22,
+                    day: 11,
+                    month: 0,
+                    year: 2023,
+                    datetime: 1673475600000,
+                    time_zone_offset: 0,
+                    mood: 3,
+                    note: "Hey, here's a note with\nLinebreaks!\nBecause I love breaking parsers".to_owned(),
+                    note_title: String::new(),
+                    tags: vec![
+                        4,
+                    ],
+                    assets: vec![],
+                },
+                DayEntry {
+                    id: 4,
                     minute: 0,
                     hour: 20,
                     day: 4,
@@ -185,12 +202,12 @@ mod tests {
                     note: String::new(),
                     note_title: String::new(),
                     tags: vec![
-                        4, 3, 7, 5,
+                        4, 5, 3, 7,
                     ],
                     assets: vec![],
                 },
                 DayEntry {
-                    id: 4,
+                    id: 5,
                     minute: 0,
                     hour: 20,
                     day: 16,
@@ -207,7 +224,7 @@ mod tests {
                 },
             ],
             metadata: Metadata {
-                number_of_entries: 4,
+                number_of_entries: 5,
                 ..Default::default()
             },
             ..core::default::Default::default()

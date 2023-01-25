@@ -1,3 +1,5 @@
+#![feature(stmt_expr_attributes)]
+
 mod analyze_pdf;
 mod anonymize;
 mod daylio;
