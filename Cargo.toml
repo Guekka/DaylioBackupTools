@@ -26,7 +26,7 @@ serde_json = "1.0.91"
 zip = "0.6.3"
 
 [dev-dependencies]
-pretty_assertions_sorted = "1.2.1"
+similar-asserts = "1.4.2"
 
 [profile.dev.package.backtrace]
 opt-level = 3

@@ -206,7 +206,7 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use pretty_assertions_sorted::{assert_eq, assert_eq_sorted};
+    use similar_asserts::assert_eq;
     use std::io::Read;
 
     const SMALL_PDF_PATH_ENGLISH: &str = "tests/data/official/english.pdf";
@@ -308,7 +308,7 @@ pub(crate) mod tests {
             ],
         };
 
-        assert_eq_sorted!(actual, expected);
+        assert_eq!(actual, expected);
 
         Ok(())
     }
@@ -887,6 +887,6 @@ pub(crate) mod tests {
             day_entries: expected_entries,
         };
 
-        assert_eq_sorted!(parsed, expected);
+        assert_eq!(parsed, expected);
     }
 }
