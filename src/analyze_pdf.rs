@@ -175,7 +175,7 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
         let (_, entry_tags) = extract_tags(entry, &parsed.stats);
         if !moods.iter().any(|m| m.name == entry.mood) {
             moods.push(Mood {
-                id: moods.len() as i64,
+                id: moods.len() as i64 + 5, // 5 is the number of predefined moods
                 name: entry.mood.clone(),
                 group: 0,
                 predefined: false,
