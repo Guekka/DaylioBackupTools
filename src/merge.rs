@@ -25,17 +25,31 @@ impl IdGenerator {
     }
 }
 
+trait ProjectEq<T> {
+    fn project(&self) -> T;
+}
+
+impl ProjectEq<(String, i64)> for CustomMood {
+    fn project(&self) -> (String, i64) {
+        (self.custom_name.to_lowercase(), self.mood_group_id)
+    }
+}
+
 impl PartialEq for CustomMood {
     fn eq(&self, other: &Self) -> bool {
-        self.custom_name.to_lowercase() == other.custom_name.to_lowercase()
-            && self.icon_id == other.icon_id
-            && self.mood_group_id == other.mood_group_id
+        self.project() == other.project()
+    }
+}
+
+impl ProjectEq<String> for Tag {
+    fn project(&self) -> String {
+        self.name.to_lowercase()
     }
 }
 
 impl PartialEq for Tag {
     fn eq(&self, other: &Self) -> bool {
-        self.name.to_lowercase() == other.name.to_lowercase() && self.icon == other.icon
+        self.project() == other.project()
     }
 }
 
@@ -73,8 +87,7 @@ impl Daylio {
 
     fn remove_duplicates(&mut self) {
         // for moods
-        self.custom_moods
-            .sort_by_key(|x| (x.custom_name.to_lowercase(), x.icon_id));
+        self.custom_moods.sort_by_key(ProjectEq::project);
 
         for i in 1..self.custom_moods.len() {
             if self.custom_moods[i - 1] == self.custom_moods[i] {
@@ -87,7 +100,7 @@ impl Daylio {
         self.custom_moods.retain(|mood| mood.id != -1);
 
         // for tags
-        self.tags.sort_by_key(|x| (x.name.to_lowercase(), x.icon));
+        self.tags.sort_by_key(ProjectEq::project);
 
         for i in 1..self.tags.len() {
             if self.tags[i - 1] == self.tags[i] {
