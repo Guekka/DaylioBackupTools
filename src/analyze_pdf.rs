@@ -245,6 +245,7 @@ impl From<Mood> for daylio::CustomMood {
                 mood.name
             },
             mood_group_id: mood.group,
+            icon_id: 1,
             ..Default::default()
         }
     }
@@ -255,6 +256,7 @@ impl From<Tag> for daylio::Tag {
         daylio::Tag {
             id: tag.id,
             name: tag.name,
+            icon: 1,
             ..Default::default()
         }
     }
