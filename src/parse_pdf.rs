@@ -8,7 +8,7 @@ use nom::multi::{count, many_till};
 use std::fmt::{Debug, Display};
 
 use nom::branch::alt;
-use nom::character::complete::{digit1, line_ending, multispace0, space0};
+use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
 use nom::combinator::{eof, map, map_res, opt};
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{Finish, Parser};
@@ -69,7 +69,7 @@ fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
             multispace0,
             tuple((
                 terminated(take_until("  "), multispace0),
-                map_res(terminated(digit1, tag("×")), str::parse::<u32>),
+                map_res(terminated(digit1, one_of("×x")), str::parse::<u32>),
             )),
         ),
         |(name, count)| StatLine::new(name.to_string(), count),
