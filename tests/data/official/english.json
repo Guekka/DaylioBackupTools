@@ -1,0 +1,661 @@
+{
+  "version": 15,
+  "isReminderOn": true,
+  "customMoods": [
+    {
+      "id": 1,
+      "custom_name": "",
+      "mood_group_id": 1,
+      "mood_group_order": 0,
+      "icon_id": 1,
+      "predefined_name_id": 1,
+      "state": 0,
+      "createdAt": 1674550757631
+    },
+    {
+      "id": 6,
+      "custom_name": "love it",
+      "mood_group_id": 1,
+      "mood_group_order": 1,
+      "icon_id": 6,
+      "predefined_name_id": -1,
+      "state": 0,
+      "createdAt": 1674550854384
+    },
+    {
+      "id": 2,
+      "custom_name": "",
+      "mood_group_id": 2,
+      "mood_group_order": 0,
+      "icon_id": 2,
+      "predefined_name_id": 2,
+      "state": 0,
+      "createdAt": 1674550757631
+    },
+    {
+      "id": 7,
+      "custom_name": "g",
+      "mood_group_id": 2,
+      "mood_group_order": 1,
+      "icon_id": 14,
+      "predefined_name_id": -1,
+      "state": 0,
+      "createdAt": 1674550879018
+    },
+    {
+      "id": 3,
+      "custom_name": "",
+      "mood_group_id": 3,
+      "mood_group_order": 0,
+      "icon_id": 3,
+      "predefined_name_id": 3,
+      "state": 0,
+      "createdAt": 1674550757631
+    },
+    {
+      "id": 4,
+      "custom_name": "",
+      "mood_group_id": 4,
+      "mood_group_order": 0,
+      "icon_id": 4,
+      "predefined_name_id": 4,
+      "state": 0,
+      "createdAt": 1674550757631
+    },
+    {
+      "id": 8,
+      "custom_name": "null",
+      "mood_group_id": 4,
+      "mood_group_order": 1,
+      "icon_id": 14,
+      "predefined_name_id": -1,
+      "state": 0,
+      "createdAt": 1674550892634
+    },
+    {
+      "id": 5,
+      "custom_name": "",
+      "mood_group_id": 5,
+      "mood_group_order": 0,
+      "icon_id": 5,
+      "predefined_name_id": 5,
+      "state": 0,
+      "createdAt": 1674550757631
+    }
+  ],
+  "tags": [
+    {
+      "id": 1,
+      "name": "famille",
+      "createdAt": 1674550757621,
+      "icon": 41,
+      "order": 1,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 2,
+      "name": "amis",
+      "createdAt": 1674550757622,
+      "icon": 94,
+      "order": 2,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 3,
+      "name": "rendez-vous",
+      "createdAt": 1674550757623,
+      "icon": 53,
+      "order": 3,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 4,
+      "name": "exercice",
+      "createdAt": 1674550757624,
+      "icon": 336,
+      "order": 4,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 5,
+      "name": "sport",
+      "createdAt": 1674550757625,
+      "icon": 67,
+      "order": 5,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 6,
+      "name": "dormir tôt",
+      "createdAt": 1674550757626,
+      "icon": 355,
+      "order": 6,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 7,
+      "name": "manger sain",
+      "createdAt": 1674550757627,
+      "icon": 194,
+      "order": 7,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 8,
+      "name": "détente",
+      "createdAt": 1674550757628,
+      "icon": 9,
+      "order": 8,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 9,
+      "name": "films",
+      "createdAt": 1674550757629,
+      "icon": 91,
+      "order": 9,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 10,
+      "name": "lecture",
+      "createdAt": 1674550757630,
+      "icon": 12,
+      "order": 10,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 11,
+      "name": "jeu vidéo",
+      "createdAt": 1674550757631,
+      "icon": 30,
+      "order": 11,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 12,
+      "name": "ménage",
+      "createdAt": 1674550757632,
+      "icon": 139,
+      "order": 12,
+      "state": 0,
+      "id_tag_group": 0
+    },
+    {
+      "id": 13,
+      "name": "shopping",
+      "createdAt": 1674550757633,
+      "icon": 69,
+      "order": 13,
+      "state": 0,
+      "id_tag_group": 0
+    }
+  ],
+  "dayEntries": [
+    {
+      "id": 4,
+      "minute": 36,
+      "hour": 11,
+      "day": 24,
+      "month": 0,
+      "year": 2023,
+      "datetime": 1674556607764,
+      "timeZoneOffset": 3600000,
+      "mood": 5,
+      "note": "",
+      "note_title": "",
+      "tags": [],
+      "assets": []
+    },
+    {
+      "id": 1,
+      "minute": 59,
+      "hour": 9,
+      "day": 24,
+      "month": 0,
+      "year": 2023,
+      "datetime": 1674550757766,
+      "timeZoneOffset": 3600000,
+      "mood": 1,
+      "note": "Note body",
+      "note_title": "Note title",
+      "tags": [
+        1,
+        3,
+        4,
+        5,
+        12
+      ],
+      "assets": []
+    },
+    {
+      "id": 2,
+      "minute": 0,
+      "hour": 20,
+      "day": 4,
+      "month": 0,
+      "year": 2023,
+      "datetime": 1672858800000,
+      "timeZoneOffset": 3600000,
+      "mood": 5,
+      "note": "",
+      "note_title": "",
+      "tags": [
+        7,
+        9,
+        12,
+        13
+      ],
+      "assets": []
+    },
+    {
+      "id": 3,
+      "minute": 0,
+      "hour": 20,
+      "day": 16,
+      "month": 4,
+      "year": 2015,
+      "datetime": 1431799200000,
+      "timeZoneOffset": 7200000,
+      "mood": 8,
+      "note": "No tag<br>This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long<br>This is an old note. It has no title, but its body is really long<br>This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long<br>This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long<br>This is an old note. It has no title, but its body is really long<br>This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long",
+      "note_title": "",
+      "tags": [],
+      "assets": []
+    }
+  ],
+  "achievements": [
+    {
+      "name": "AC_FIRST_ENTRY",
+      "AC_FIRST_ENTRY_SEEN": true,
+      "AC_FIRST_ENTRY_UNLOCKED_AT": 1674550803741
+    },
+    {
+      "name": "AC_ENTRIES",
+      "AC_ENTRIES_SEEN": false,
+      "AC_ENTRIES_UNLOCKED_AT": 1674550995446,
+      "AC_ENTRIES_CURRENT_LEVEL": 1,
+      "AC_ENTRIES_CURRENT_VALUE": 4,
+      "AC_ENTRIES_LAST_SEEN_LEVEL": 1
+    },
+    {
+      "name": "AC_ENTRIES_BONUS_LVL",
+      "AC_ENTRIES_BONUS_LVL_SEEN": false,
+      "AC_ENTRIES_BONUS_LVL_UNLOCKED_AT": 0,
+      "AC_ENTRIES_BONUS_LVL_CURRENT_LEVEL": 0,
+      "AC_ENTRIES_BONUS_LVL_CURRENT_VALUE": 4,
+      "AC_ENTRIES_BONUS_LVL_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_ENTRIES_MILLENNIUMS",
+      "AC_ENTRIES_MILLENNIUMS_SEEN": false,
+      "AC_ENTRIES_MILLENNIUMS_UNLOCKED_AT": 0,
+      "AC_ENTRIES_MILLENNIUMS_CURRENT_LEVEL": 0,
+      "AC_ENTRIES_MILLENNIUMS_CURRENT_VALUE": 4,
+      "AC_ENTRIES_MILLENNIUMS_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_ENTRIES_ETERNITY",
+      "AC_ENTRIES_ETERNITY_SEEN": false,
+      "AC_ENTRIES_ETERNITY_UNLOCKED_AT": 0,
+      "AC_ENTRIES_ETERNITY_CURRENT_LEVEL": 0,
+      "AC_ENTRIES_ETERNITY_CURRENT_VALUE": 4,
+      "AC_ENTRIES_ETERNITY_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_STREAK",
+      "AC_STREAK_SEEN": false,
+      "AC_STREAK_UNLOCKED_AT": 0,
+      "AC_STREAK_CURRENT_LEVEL": 0,
+      "AC_STREAK_CURRENT_VALUE": 1,
+      "AC_STREAK_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_MEGA_STREAK",
+      "AC_MEGA_STREAK_SEEN": false,
+      "AC_MEGA_STREAK_UNLOCKED_AT": 0,
+      "AC_MEGA_STREAK_CURRENT_LEVEL": 0,
+      "AC_MEGA_STREAK_CURRENT_VALUE": 1,
+      "AC_MEGA_STREAK_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_EPIC_STREAK",
+      "AC_EPIC_STREAK_SEEN": false,
+      "AC_EPIC_STREAK_UNLOCKED_AT": 0,
+      "AC_EPIC_STREAK_CURRENT_LEVEL": 0,
+      "AC_EPIC_STREAK_CURRENT_VALUE": 1,
+      "AC_EPIC_STREAK_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_MYTHICAL_STREAK",
+      "AC_MYTHICAL_STREAK_SEEN": false,
+      "AC_MYTHICAL_STREAK_UNLOCKED_AT": 0,
+      "AC_MYTHICAL_STREAK_CURRENT_LEVEL": 0,
+      "AC_MYTHICAL_STREAK_CURRENT_VALUE": 1,
+      "AC_MYTHICAL_STREAK_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_STREAK_BONUS",
+      "AC_STREAK_BONUS_SEEN": false,
+      "AC_STREAK_BONUS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_TAGS",
+      "AC_TAGS_SEEN": false,
+      "AC_TAGS_UNLOCKED_AT": 0,
+      "AC_TAGS_CURRENT_LEVEL": 0,
+      "AC_TAGS_CURRENT_VALUE": 13,
+      "AC_TAGS_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_MOODS",
+      "AC_MOODS_SEEN": false,
+      "AC_MOODS_UNLOCKED_AT": 1674550854450,
+      "AC_MOODS_CURRENT_LEVEL": 1,
+      "AC_MOODS_CURRENT_VALUE": 8,
+      "AC_MOODS_LAST_SEEN_LEVEL": 1
+    },
+    {
+      "name": "AC_GOALS_DEDICATED",
+      "AC_GOALS_DEDICATED_SEEN": false,
+      "AC_GOALS_DEDICATED_UNLOCKED_AT": 0,
+      "AC_GOALS_DEDICATED_CURRENT_LEVEL": 0,
+      "AC_GOALS_DEDICATED_CURRENT_VALUE": 0,
+      "AC_GOALS_DEDICATED_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_PAPARAZZI",
+      "AC_PAPARAZZI_SEEN": false,
+      "AC_PAPARAZZI_UNLOCKED_AT": 0,
+      "AC_PAPARAZZI_CURRENT_LEVEL": 0,
+      "AC_PAPARAZZI_CURRENT_VALUE": 0,
+      "AC_PAPARAZZI_LAST_SEEN_LEVEL": 0
+    },
+    {
+      "name": "AC_COLORS",
+      "AC_COLORS_SEEN": false,
+      "AC_COLORS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_MULTIPLE_ENTRIES",
+      "AC_MULTIPLE_ENTRIES_SEEN": false,
+      "AC_MULTIPLE_ENTRIES_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_GROUPS",
+      "AC_GROUPS_SEEN": false,
+      "AC_GROUPS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_STYLE",
+      "AC_STYLE_SEEN": false,
+      "AC_STYLE_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_SMART",
+      "AC_SMART_SEEN": false,
+      "AC_SMART_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_AUTO_BACKUP",
+      "AC_AUTO_BACKUP_SEEN": false,
+      "AC_AUTO_BACKUP_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_PREMIUM",
+      "AC_PREMIUM_SEEN": true,
+      "AC_PREMIUM_UNLOCKED_AT": 1674550559869
+    },
+    {
+      "name": "AC_ROLLERCOASTER",
+      "AC_ROLLERCOASTER_SEEN": false,
+      "AC_ROLLERCOASTER_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_PIN_CODE",
+      "AC_PIN_CODE_SEEN": false,
+      "AC_PIN_CODE_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_NO_BACKUP",
+      "AC_NO_BACKUP_SEEN": false,
+      "AC_NO_BACKUP_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_MEH_DAYS",
+      "AC_MEH_DAYS_SEEN": false,
+      "AC_MEH_DAYS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_GOOD_DAYS",
+      "AC_GOOD_DAYS_SEEN": false,
+      "AC_GOOD_DAYS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_RAD_DAYS",
+      "AC_RAD_DAYS_SEEN": false,
+      "AC_RAD_DAYS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_MOODS_BONUS",
+      "AC_MOODS_BONUS_SEEN": false,
+      "AC_MOODS_BONUS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_TAGS_BONUS",
+      "AC_TAGS_BONUS_SEEN": false,
+      "AC_TAGS_BONUS_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_LUCKY_STREAK",
+      "AC_LUCKY_STREAK_SEEN": false,
+      "AC_LUCKY_STREAK_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_CRYPTIC_STREAK",
+      "AC_CRYPTIC_STREAK_SEEN": false,
+      "AC_CRYPTIC_STREAK_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_MYSTERIOUS_STREAK",
+      "AC_MYSTERIOUS_STREAK_SEEN": false,
+      "AC_MYSTERIOUS_STREAK_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_SAY_CHEESE",
+      "AC_SAY_CHEESE_SEEN": false,
+      "AC_SAY_CHEESE_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2022",
+      "AC_YEARLY_REPORT_2022_SEEN": false,
+      "AC_YEARLY_REPORT_2022_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2021",
+      "AC_YEARLY_REPORT_2021_SEEN": false,
+      "AC_YEARLY_REPORT_2021_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2020",
+      "AC_YEARLY_REPORT_2020_SEEN": false,
+      "AC_YEARLY_REPORT_2020_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2019",
+      "AC_YEARLY_REPORT_2019_SEEN": false,
+      "AC_YEARLY_REPORT_2019_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2018",
+      "AC_YEARLY_REPORT_2018_SEEN": false,
+      "AC_YEARLY_REPORT_2018_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2017",
+      "AC_YEARLY_REPORT_2017_SEEN": false,
+      "AC_YEARLY_REPORT_2017_UNLOCKED_AT": 0
+    },
+    {
+      "name": "AC_YEARLY_REPORT_2016",
+      "AC_YEARLY_REPORT_2016_SEEN": false,
+      "AC_YEARLY_REPORT_2016_UNLOCKED_AT": 0
+    }
+  ],
+  "daysInRowLongestChain": 1,
+  "goals": [],
+  "prefs": [
+    {
+      "key": "BACKUP_REMINDER_DONT_SHOW_AGAIN",
+      "pref_name": "default",
+      "value": false
+    },
+    {
+      "key": "PRESELECTED_LANG",
+      "pref_name": "default",
+      "value": "en"
+    },
+    {
+      "key": "LAST_DAYS_IN_ROWS_NUMBER",
+      "pref_name": "default",
+      "value": 1
+    },
+    {
+      "key": "DAYS_IN_ROW_LONGEST_CHAIN",
+      "pref_name": "default",
+      "value": 1
+    },
+    {
+      "key": "LAST_ENTRY_CREATION_TIME",
+      "pref_name": "default",
+      "value": 1674556609612
+    },
+    {
+      "key": "COLOR_PALETTE_DEFAULT_CODE",
+      "pref_name": "default",
+      "value": 16
+    },
+    {
+      "key": "PREDEFINED_MOODS_VARIANT",
+      "pref_name": "default",
+      "value": 1
+    },
+    {
+      "key": "ONBOARDING_USER_PROPERTY",
+      "pref_name": "default",
+      "value": "finished"
+    },
+    {
+      "key": "SUBSCRIPTION_IS_FREE_TRIAL_POSSIBLE",
+      "pref_name": "default",
+      "value": false
+    }
+  ],
+  "tag_groups": [],
+  "metadata": {
+    "number_of_entries": 4,
+    "created_at": 1674556623548,
+    "is_auto_backup": false,
+    "platform": "android",
+    "android_version": 15,
+    "number_of_photos": 0,
+    "photos_size": 0
+  },
+  "moodIconsPackId": 1,
+  "preferredMoodIconsIdsForMoodIdsForIconsPack": {
+    "1": {
+      "6": 6,
+      "7": 14,
+      "8": 14
+    }
+  },
+  "assets": [],
+  "goalEntries": [],
+  "goalSuccessWeeks": [],
+  "reminders": [
+    {
+      "id": 1,
+      "hour": 20,
+      "minute": 0,
+      "state": 0,
+      "custom_text_enabled": false
+    }
+  ],
+  "writingTemplates": [
+    {
+      "id": 1,
+      "order": 0,
+      "predefined_template_id": 1,
+      "title": "🙏 Entrée de gratitude",
+      "body": "<b>Énumérez trois choses dont vous êtes reconnaissant :</b><ol><li></li></ol>"
+    },
+    {
+      "id": 2,
+      "order": 1,
+      "predefined_template_id": 2,
+      "title": "🌅 Réflexion du matin",
+      "body": "<b>Comment vous sentez-vous ?</b><br><br><b>Pourquoi ressentez-vous ces émotions ?</b><br><br><b>Qu'allez-vous faire aujourd'hui ?</b><br><br><b>Qu'attendez-vous avec impatience ?</b><br><br>"
+    },
+    {
+      "id": 3,
+      "order": 2,
+      "predefined_template_id": 3,
+      "title": "✅ Liste de tâches à faire",
+      "body": "<b>Quelles tâches m'attendent ?</b><br><br><b>Quelles sont les priorités ?</b><br><br><b>Qui devrais-je contacter ?</b><br><br><b>Qu'est-ce qui ferait de cette journée un succès ?</b><br><br>"
+    },
+    {
+      "id": 4,
+      "order": 3,
+      "predefined_template_id": 4,
+      "title": "😴 Décharge des pensées nocturne",
+      "body": "<b>Que devez-vous faire demain ?</b><br><br><b>Que devez-vous faire cette semaine ?</b><br><br><b>Qu'est-ce qui vous inquiète ?</b><br><br><b>Qu'attendez-vous avec impatience ?</b><br><br>"
+    },
+    {
+      "id": 5,
+      "order": 4,
+      "predefined_template_id": 5,
+      "title": "🤗 Se remonter immédiatement le moral",
+      "body": "<b>De quoi êtes-vous reconnaissant ?</b><br><br><b>Qu'avez-vous apprécié aujourd'hui ?</b><br><br><b>Que prévoyez-vous de faire à l'avenir ?</b><br><br><b>Qu'est-ce que les gens aiment à votre sujet ?</b><br><br>"
+    },
+    {
+      "id": 6,
+      "order": 5,
+      "predefined_template_id": 6,
+      "title": "🤔 Introspection",
+      "body": "<b>Qu'est-ce que je ressens actuellement ?</b><br><br><b>Qu'est-ce qui me donne de l'espoir ?</b><br><br><b>Qu'est-ce qui m'inquiète ?</b><br><br><b>Que puis-je accepter sans être capable de le changer ?</b><br><br>"
+    },
+    {
+      "id": 7,
+      "order": 6,
+      "predefined_template_id": 7,
+      "title": "🤝 Prendre conscience d'autrui",
+      "body": "<b>Qu'est-ce que fais ressentir aux autres ?</b><br><br><b>Ai-je fait un acte de bonté ?</b><br><br><b>Que puis-je faire mieux demain ?</b><br><br>"
+    },
+    {
+      "id": 8,
+      "order": 7,
+      "predefined_template_id": 8,
+      "title": "😌 Délaisser les soucis",
+      "body": "<b>Qu'est-ce qui vous inquiète ?</b><br><br><b>Qu'en penserait quelqu'un d'autre ?</b><br><br><b>Que pourrait être une issue positive ?</b><br><br>"
+    },
+    {
+      "id": 9,
+      "order": 8,
+      "predefined_template_id": 9,
+      "title": "💡 Idée",
+      "body": "<b>Quelle est votre idée ?</b><br><br><b>Comment ça marche ?</b><br><br><b>Quelles sont les prochaines étapes ?</b><br><br>"
+    }
+  ],
+  "moodIconsDefaultFreePackId": 1
+}
