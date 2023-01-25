@@ -35,6 +35,49 @@ pub(crate) struct ProcessedPdf {
     tags: Vec<Tag>,
 }
 
+/// differences between english and french:
+/// - month names
+/// - "month day, year" becomes "day month year" in french
+fn convert_french_date(date: String) -> String {
+    let date = date.to_lowercase();
+    let month_dict = [
+        ("janvier", "january"),
+        ("février", "february"),
+        ("mars", "march"),
+        ("avril", "april"),
+        ("mai", "may"),
+        ("juin", "june"),
+        ("juillet", "july"),
+        ("août", "august"),
+        ("septembre", "september"),
+        ("octobre", "october"),
+        ("novembre", "november"),
+        ("décembre", "december"),
+    ];
+
+    if !month_dict.iter().any(|(french, _)| date.contains(french)) {
+        return date; // not a french date
+    }
+
+    let mut date_parts = date.split_whitespace();
+    let day = date_parts.next().unwrap();
+
+    let en_month = date_parts.next().unwrap();
+    let month = month_dict
+        .iter()
+        .find(|(french, _)| *french == en_month)
+        .map(|(_, english)| english)
+        .unwrap();
+
+    let rest = date_parts.collect::<Vec<_>>().join(" ");
+
+    format!("{month} {day}, {rest}")
+}
+
+fn convert_language_date(date: String) -> String {
+    convert_french_date(date)
+}
+
 fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
     // Date looks like August 2, 2022
     // Time looks like Monday 8 45 PM
@@ -47,7 +90,8 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
     let time = &entry.day_hour[time_idx + 1..];
 
     // August 2, 2022 8:45 PM
-    let time_str = format!("{} {}", entry.date, time);
+    let mut time_str = format!("{} {}", entry.date, time);
+    time_str = convert_language_date(time_str);
 
     NaiveDateTime::parse_from_str(&time_str, "%B %e, %Y %l %M %p")
         .map_err(|e| eyre!("Failed to parse date: {}", e))

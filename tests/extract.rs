@@ -21,9 +21,26 @@ mod tests {
     #[test]
     /// This test shows information lost when converting from PDF to JSON.
     /// This is not so bad! The PDF format is not meant to be machine-readable.
-    fn pdf_format() -> Result<()> {
+    fn pdf_format_english() -> Result<()> {
         let actual = load_daylio_pdf("tests/data/official/english.pdf".as_ref())?;
+        let expected = expected_pdf();
 
+        assert_eq!(actual, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn pdf_format_french() -> Result<()> {
+        let actual = load_daylio_pdf("tests/data/official/french.pdf".as_ref())?;
+        let expected = expected_pdf();
+
+        assert_eq!(actual, expected);
+
+        Ok(())
+    }
+
+    fn expected_pdf() -> Daylio {
         let mut expected_moods = Daylio::default().custom_moods;
         // Unfortunately, the PDF format does not contain the mood group id, so it is guessed
         // In this case, the guess is wrong
@@ -41,7 +58,7 @@ mod tests {
             },
         );
 
-        let expected = Daylio {
+        Daylio {
             version: 15,
             custom_moods: expected_moods,
             tags: vec![
@@ -194,10 +211,6 @@ mod tests {
                 ..Default::default()
             },
             ..core::default::Default::default()
-        };
-
-        assert_eq!(actual, expected);
-
-        Ok(())
+        }
     }
 }
