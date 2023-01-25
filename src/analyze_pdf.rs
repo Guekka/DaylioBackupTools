@@ -5,6 +5,8 @@ use crate::{daylio, merge, Daylio};
 use chrono::{Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
+use std::io;
+use std::io::{Stdout, Write};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -38,6 +40,7 @@ pub(crate) struct ProcessedPdf {
 /// differences between english and french:
 /// - month names
 /// - "month day, year" becomes "day month year" in french
+/// - 24 hour clock
 fn convert_french_date(date: String) -> String {
     let date = date.to_lowercase();
     let month_dict = [
@@ -69,9 +72,23 @@ fn convert_french_date(date: String) -> String {
         .map(|(_, english)| english)
         .unwrap();
 
-    let rest = date_parts.collect::<Vec<_>>().join(" ");
+    let year = date_parts.next().unwrap();
 
-    format!("{month} {day}, {rest}")
+    let mut hour = date_parts.next().unwrap().to_owned();
+    let minute = date_parts.next().unwrap();
+
+    // if the clock is 24h, we need to convert it to 12h
+    let am_pm = date_parts.next().unwrap_or_else(|| {
+        // 24h clock
+        if hour.parse::<u8>().unwrap() > 12 {
+            hour = (hour.parse::<u8>().unwrap() - 12).to_string();
+            "pm"
+        } else {
+            "am"
+        }
+    });
+
+    format!("{month} {day}, {year} {hour} {minute} {am_pm}")
 }
 
 fn convert_language_date(date: String) -> String {
@@ -91,6 +108,9 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
 
     // August 2, 2022 8:45 PM
     let mut time_str = format!("{} {}", entry.date, time);
+
+    // sometimes hour is hour:minute, sometimes it's hour minute
+    time_str = time_str.replace(":", " ");
     time_str = convert_language_date(time_str);
 
     NaiveDateTime::parse_from_str(&time_str, "%B %e, %Y %l %M %p")
