@@ -5,8 +5,6 @@ use crate::{daylio, merge, Daylio};
 use chrono::{Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre::eyre;
 use color_eyre::Result;
-use std::io;
-use std::io::{Stdout, Write};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -110,7 +108,7 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
     let mut time_str = format!("{} {}", entry.date, time);
 
     // sometimes hour is hour:minute, sometimes it's hour minute
-    time_str = time_str.replace(":", " ");
+    time_str = time_str.replace(':', " ");
     time_str = convert_language_date(time_str);
 
     NaiveDateTime::parse_from_str(&time_str, "%B %e, %Y %l %M %p")

@@ -3,7 +3,7 @@
 
 use color_eyre::eyre::ContextCompat;
 use color_eyre::Result;
-use nom::bytes::complete::{tag, take_till, take_until};
+use nom::bytes::complete::{take_till, take_until};
 use nom::multi::{count, many_till};
 use std::fmt::{Debug, Display};
 
