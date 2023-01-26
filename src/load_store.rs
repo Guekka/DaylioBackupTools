@@ -1,3 +1,4 @@
+use crate::analyze_pdf::ProcessedPdf;
 use crate::Daylio;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use color_eyre::eyre::{eyre, ContextCompat, WrapErr};
@@ -32,12 +33,19 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
     serde_json::from_str(&data).wrap_err("Failed to parse Daylio JSON")
 }
 
+pub fn load_daylio_pdf(path: &Path) -> Result<Daylio> {
+    crate::parse_pdf::parse_pdf(path)
+        .map(Into::<ProcessedPdf>::into)
+        .map(Into::into)
+}
+
 pub fn load_daylio(path: &Path) -> Result<Daylio> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
             "daylio" => load_daylio_backup(path),
             "json" => load_daylio_json(path),
+            "pdf" => load_daylio_pdf(path),
             _ => Err(eyre!("Unknown file extension")),
         }
     } else {

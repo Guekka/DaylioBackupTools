@@ -163,4 +163,5 @@ localdata/**/*
 # Devenv
 .devenv*
 devenv.local.nix
-
+.envrc
+.pre-commit-config.yaml
