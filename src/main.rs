@@ -1,7 +1,9 @@
-use color_eyre::eyre::{ContextCompat, Result};
-use daylio_tools::{load_daylio, merge, store_daylio_backup, store_daylio_json};
 use std::env;
 use std::path::PathBuf;
+
+use color_eyre::eyre::{ContextCompat, Result};
+
+use daylio_tools::{load_daylio, merge, store_daylio_backup, store_daylio_json};
 
 enum Command {
     Merge {
@@ -84,9 +86,6 @@ fn parse_args() -> Result<Command> {
     }
 }
 
-/// Merges two daylio json files into one.
-/// We assume the files have version 15, but this is not checked.
-/// We keep everything from the first file, and add the new entries from the other files
 fn main() -> Result<()> {
     color_eyre::install()?;
 

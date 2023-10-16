@@ -1,21 +1,21 @@
 //! This module parses the PDF file without any interpretation
 #![allow(dead_code)]
 
-use color_eyre::eyre::{ContextCompat, WrapErr};
-use color_eyre::Result;
-use nom::bytes::complete::{take_till, take_until};
-use nom::multi::{count, many_till};
 use std::fmt::{Debug, Display};
 use std::mem;
+use std::path::Path;
 
 use chrono::NaiveDate;
+use color_eyre::eyre::{ContextCompat, WrapErr};
+use color_eyre::Result;
 use nom::branch::alt;
+use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
 use nom::combinator::{eof, map, map_res};
+use nom::multi::{count, many_till};
 use nom::sequence::{delimited, preceded, terminated, tuple};
 use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
-use std::path::Path;
 
 type IResult<I, O> = nom::IResult<I, O, nom::error::VerboseError<I>>;
 
@@ -174,19 +174,9 @@ fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)>
         )
     }
 
-    #[rustfmt::skip]
     preceded(
         multispace0,
-        many_till(
-            main,
-            alt(
-                (
-                    map(parse_date, Some),
-                    map(eof, |_| None),
-                ),
-            ),
-        )
-            .map(remove_empty),
+        many_till(main, alt((map(parse_date, Some), map(eof, |_| None)))).map(remove_empty),
     )(input)
 }
 
@@ -272,9 +262,11 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-    use similar_asserts::assert_eq;
     use std::io::Read;
+
+    use similar_asserts::assert_eq;
+
+    use super::*;
 
     const SMALL_PDF_PATH_ENGLISH: &str = "tests/data/official/english.pdf";
 

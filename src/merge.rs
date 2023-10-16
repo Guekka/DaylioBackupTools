@@ -169,7 +169,7 @@ impl Daylio {
 
         self.tags.sort_by_key(|x| x.created_at);
         let mut id_generator = IdGenerator::new(1);
-        for (i, mut tag) in self.tags.iter_mut().enumerate() {
+        for (i, tag) in self.tags.iter_mut().enumerate() {
             Daylio::change_tag_id(&mut self.day_entries, tag, id_generator.next());
             tag.order = i as i64 + 1;
         }
@@ -183,6 +183,9 @@ impl Daylio {
     }
 }
 
+/// Merges two daylio json files into one.
+/// We assume the files have version 15, but this is not checked.
+/// We keep everything from the first file, and add the new entries from the other files
 pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
     const BIG_OFFSET: u64 = 1000;
 

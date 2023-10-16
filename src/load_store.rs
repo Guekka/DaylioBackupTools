@@ -1,14 +1,16 @@
-use crate::analyze_pdf::ProcessedPdf;
-use crate::Daylio;
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use color_eyre::eyre::{eyre, ContextCompat, WrapErr};
-use color_eyre::Result;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::Read;
 use std::path::Path;
+
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use color_eyre::eyre::{eyre, ContextCompat, WrapErr};
+use color_eyre::Result;
 use zip::write::FileOptions;
 use zip::ZipWriter;
+
+use crate::analyze_pdf::ProcessedPdf;
+use crate::Daylio;
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
     let file = File::open(path)?;

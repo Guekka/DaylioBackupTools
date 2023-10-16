@@ -1,5 +1,6 @@
-use crate::Daylio;
 use nanorand::{Rng, WyRand};
+
+use crate::Daylio;
 
 fn rand_string(len: usize) -> String {
     let mut rng = WyRand::new();

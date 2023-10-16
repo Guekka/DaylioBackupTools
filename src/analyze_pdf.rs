@@ -1,9 +1,10 @@
 //! This module interprets the parsed PDF data into a Daylio struct.
 
-use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
-use crate::{daylio, merge, Daylio};
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 use color_eyre::Result;
+
+use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
+use crate::{daylio, merge, Daylio};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -258,8 +259,9 @@ impl From<ProcessedPdf> for Daylio {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use chrono::{Datelike, NaiveDate, Timelike};
+
+    use super::*;
 
     #[test]
     fn test_parse_date() {
