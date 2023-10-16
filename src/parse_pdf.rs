@@ -156,28 +156,20 @@ fn parse_day_hour(input: &str) -> IResult<&str, &str> {
 /// ```
 fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)> {
     // The body is a series of lines, separated by line endings
-    let main = alt((
+    let body = alt((
         parse_page_number.map(|_| None), // page numbers can be intertwined with the note
         read_line.map(Some),
     ));
 
-    fn remove_empty(
-        (lines, date): (Vec<Option<&str>>, Option<NaiveDate>),
-    ) -> (Vec<&str>, Option<NaiveDate>) {
-        (
-            lines
-                .into_iter()
-                .flatten()
-                .filter(|l| !l.is_empty())
-                .collect(),
-            date,
-        )
-    }
+    let date_or_eof = alt((parse_date.map(Some), eof.map(|_| None)));
 
-    preceded(
-        multispace0,
-        many_till(main, alt((map(parse_date, Some), map(eof, |_| None)))).map(remove_empty),
-    )(input)
+    let body = many_till(body, date_or_eof).map(|(lines, date)| {
+        let no_empty_lines = lines.into_iter().flatten().filter(|l| !l.is_empty());
+
+        (no_empty_lines.collect(), date)
+    });
+
+    preceded(multispace0, body)(input)
 }
 
 /// A day entry looks like this:
@@ -198,13 +190,13 @@ fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)>
 /// ```raw
 /// date {2, n}mood\nday hour\n(\n\n|\n{0, 1}([^\n]{1, n}, \n){1, n}\n{2, 3})
 /// ```
-/// body can also be ended by \nEOF
+/// body can also be ended by `\nEOF`
 fn parse_day_entries(input: &str) -> IResult<&str, Vec<DayEntry>> {
     // So, we are in some kind of weird situation here.
     // We use the date as a separator, as it is the only thing that is guaranteed to be there.
     // But the date is the first thing we parse, so we're gonna be off by one.
 
-    let (input, mut prev_date) = map(parse_date, Some)(input).unwrap();
+    let (input, mut prev_date) = map(parse_date, Some)(input)?;
 
     let parse_day = map(
         tuple((parse_mood, parse_day_hour, parse_note_body)),
@@ -251,13 +243,15 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
     let mut parser = tuple((first_page, parse_day_entries));
 
-    let result = parser(input)
+    parser(input)
         .finish()
         .map(|(_, (stats, day_entries))| ParsedPdf { stats, day_entries })
-        .map_err(|e| nom::error::convert_error(input, e))
-        .map_err(|json| ParsePdfError { json })?;
-
-    Ok(result)
+        .map_err(|e| {
+            ParsePdfError {
+                json: nom::error::convert_error(input, e),
+            }
+            .into()
+        })
 }
 
 #[cfg(test)]
@@ -390,7 +384,7 @@ pub(crate) mod tests {
     // All the tests below are for the large PDF
 
     const TEST_PDF: &str = "tests/data/new.pdf";
-    const TEST_PDF_TXT: &'static str = "tests/data/new_extracted.txt";
+    const TEST_PDF_TXT: &str = "tests/data/new_extracted.txt";
 
     fn get_txt() -> String {
         let mut file = std::fs::File::open(TEST_PDF_TXT).unwrap();

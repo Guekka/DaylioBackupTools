@@ -93,13 +93,13 @@ fn main() -> Result<()> {
 
     match command {
         Command::Merge { input, output } => {
-            let mut daylio = load_daylio(&input[0])?;
+            let mut reference = load_daylio(&input[0])?;
 
             for path in input.iter().skip(1) {
                 let other = load_daylio(path)?;
-                daylio = merge(daylio, other);
+                reference = merge(reference, other);
             }
-            store_daylio_backup(&daylio, &output)?;
+            store_daylio_backup(&reference, &output)?;
         }
         Command::Anonymize { input, output } => {
             let mut daylio = load_daylio(&input)?;

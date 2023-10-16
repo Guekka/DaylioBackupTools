@@ -4,6 +4,8 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use serde_json::Value;
 
+pub const NUMBER_OF_PREDEFINED_MOODS: i64 = 5;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Daylio {
@@ -108,7 +110,7 @@ impl Default for Daylio {
                 is_expanded: true,
                 order: 1,
             }],
-            metadata: Default::default(),
+            metadata: Metadata::default(),
             mood_icons_pack_id: 1,
             preferred_mood_icons_ids_for_mood_ids_for_icons_pack: serde_json::json!(
                 {

@@ -1,10 +1,10 @@
 //! This module interprets the parsed PDF data into a Daylio struct.
 
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
-use color_eyre::Result;
+use color_eyre::{eyre, Result};
 
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
-use crate::{daylio, merge, Daylio};
+use crate::{daylio, merge, Daylio, NUMBER_OF_PREDEFINED_MOODS};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -35,14 +35,19 @@ pub(crate) struct ProcessedPdf {
     tags: Vec<Tag>,
 }
 
-fn convert_24_hour_to_12_hour(time_str: &str) -> String {
-    let mut date_parts = time_str.split_whitespace();
+fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
+    let date_parts = time_str.split_whitespace().collect::<Vec<_>>();
 
-    let mut hour = date_parts.next().unwrap().to_owned();
-    let minute = date_parts.next().unwrap();
+    if date_parts.len() < 2 {
+        eyre::bail!("Invalid date format: {}", time_str);
+    }
 
-    // if the clock is 24h, we need to convert it to 12h
-    let am_pm = date_parts.next().unwrap_or_else(|| {
+    let mut hour = date_parts[0].to_owned();
+    let minute = date_parts[1];
+
+    let am_pm = if date_parts.len() == 3 {
+        date_parts[2]
+    } else {
         // 24h clock
         let hour_int = hour.parse::<u8>().unwrap();
         if hour_int > 12 {
@@ -51,21 +56,20 @@ fn convert_24_hour_to_12_hour(time_str: &str) -> String {
         } else {
             "am"
         }
-    });
+    };
 
     // sanitize hour
     if hour == "00" {
         hour = "12".to_owned();
     }
 
-    format!("{hour} {minute} {am_pm}")
+    Ok(format!("{hour} {minute} {am_pm}"))
 }
 
 fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
-    let mut time_str = entry.day_hour.to_owned();
-
     // skip the day of the week
-    time_str = time_str
+    let mut time_str = entry
+        .day_hour
         .split_whitespace()
         .skip(1)
         .collect::<Vec<_>>()
@@ -73,8 +77,8 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
 
     // sometimes hour is hour:minute, sometimes it's hour minute
     time_str = time_str.replace(':', " ");
+    time_str = convert_24_hour_to_12_hour(&time_str)?;
 
-    time_str = convert_24_hour_to_12_hour(&time_str);
     let time = NaiveTime::parse_from_str(&time_str, "%l %M %p")?;
     Ok(NaiveDateTime::new(entry.date, time))
 }
@@ -139,7 +143,7 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
         let (_, entry_tags) = extract_tags(entry, &parsed.stats);
         if !moods.iter().any(|m| m.name == entry.mood) {
             moods.push(Mood {
-                id: moods.len() as i64 + 5, // 5 is the number of predefined moods
+                id: moods.len() as i64 + NUMBER_OF_PREDEFINED_MOODS,
                 name: entry.mood.clone(),
                 group: 0,
                 predefined: false,
@@ -229,11 +233,11 @@ impl From<Tag> for daylio::Tag {
 impl From<ProcessedDayEntry> for daylio::DayEntry {
     fn from(entry: ProcessedDayEntry) -> Self {
         daylio::DayEntry {
-            minute: entry.date.minute() as i64,
-            hour: entry.date.hour() as i64,
-            day: entry.date.day() as i64,
-            month: entry.date.month() as i64 - 1, // month is 0-indexed in Daylio
-            year: entry.date.year() as i64,
+            minute: i64::from(entry.date.minute()),
+            hour: i64::from(entry.date.hour()),
+            day: i64::from(entry.date.day()),
+            month: i64::from(entry.date.month()) - 1, // month is 0-indexed in Daylio
+            year: i64::from(entry.date.year()),
             datetime: entry.date.timestamp_millis(),
             mood: entry.mood,
             note: entry.note,
@@ -246,7 +250,7 @@ impl From<ProcessedDayEntry> for daylio::DayEntry {
 impl From<ProcessedPdf> for Daylio {
     fn from(pdf: ProcessedPdf) -> Self {
         merge(
-            Default::default(),
+            Daylio::default(),
             Daylio {
                 custom_moods: pdf.moods.into_iter().map(From::from).collect(),
                 tags: pdf.tags.into_iter().map(From::from).collect(),
@@ -313,7 +317,7 @@ mod tests {
         ];
         let (note, tags) = extract_tags(&entry, &stats);
 
-        let expected_note = vec![
+        let expected_note = [
             "A tag that does not matches case".to_owned(),
             "not a tag".to_owned(),
             "still not a tag".to_owned(),

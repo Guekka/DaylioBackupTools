@@ -1,5 +1,5 @@
 use crate::daylio::{CustomMood, Daylio, Tag};
-use crate::DayEntry;
+use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
 
 #[derive(Clone, Copy)]
 struct IdGenerator {
@@ -60,7 +60,7 @@ impl Daylio {
                 entry.mood = new_id;
             }
         }
-        mood.id = new_id
+        mood.id = new_id;
     }
 
     fn change_tag_id(day_entries: &mut [DayEntry], tag: &mut Tag, new_id: i64) {
@@ -130,26 +130,25 @@ impl Daylio {
         // fix: sometimes custom moods have a custom
         // name and a predefined name
         // we keep custom name and remove predefined name
-        for mood in self.custom_moods.iter_mut() {
+        for mood in &mut self.custom_moods {
             if mood.predefined_name_id != -1 && !mood.custom_name.is_empty() {
                 mood.predefined_name_id = -1;
             }
         }
 
         // predefined moods have to have the same id as the predefined name
-        for mood in self.custom_moods.iter_mut() {
+        for mood in &mut self.custom_moods {
             if mood.predefined_name_id != -1 {
                 Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
             }
         }
 
-        // we start at 6 because the first 5 predefined moods are reserved
-        let mut id_generator = IdGenerator::with_start(1, 6);
+        let mut id_generator = IdGenerator::with_start(1, NUMBER_OF_PREDEFINED_MOODS + 1);
 
         // order is important, so we need to sort by mood_group_id and predefined comes first
         self.custom_moods
             .sort_by_key(|x| (x.mood_group_id, -x.predefined_name_id));
-        for mood in self.custom_moods.iter_mut() {
+        for mood in &mut self.custom_moods {
             if mood.predefined_name_id == -1 {
                 Daylio::change_mood_id(&mut self.day_entries, mood, id_generator.next());
             }
@@ -177,7 +176,7 @@ impl Daylio {
         self.day_entries
             .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
         let mut id_generator = IdGenerator::new(1);
-        for entry in self.day_entries.iter_mut() {
+        for entry in &mut self.day_entries {
             entry.id = id_generator.next();
         }
     }
@@ -186,11 +185,12 @@ impl Daylio {
 /// Merges two daylio json files into one.
 /// We assume the files have version 15, but this is not checked.
 /// We keep everything from the first file, and add the new entries from the other files
+#[must_use]
 pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
-    const BIG_OFFSET: u64 = 1000;
+    const BIG_OFFSET: i64 = 1000;
 
     // first_pass: make sure we don't have any duplicates id
-    let mut id_generator = IdGenerator::new(BIG_OFFSET as i64);
+    let mut id_generator = IdGenerator::new(BIG_OFFSET);
     daylio1.make_ids_distinct(&mut id_generator);
     daylio2.make_ids_distinct(&mut id_generator);
 
