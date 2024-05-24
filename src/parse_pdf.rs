@@ -8,13 +8,13 @@ use std::path::Path;
 use chrono::NaiveDate;
 use color_eyre::eyre::{ContextCompat, WrapErr};
 use color_eyre::Result;
+use nom::{Finish, Parser};
 use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
 use nom::combinator::{eof, map, map_res};
 use nom::multi::{count, many_till};
 use nom::sequence::{delimited, preceded, terminated, tuple};
-use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
 
 type IResult<I, O> = nom::IResult<I, O, nom::error::VerboseError<I>>;

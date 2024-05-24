@@ -3,8 +3,8 @@
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 use color_eyre::{eyre, Result};
 
+use crate::{daylio, Daylio, merge, NUMBER_OF_PREDEFINED_MOODS};
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
-use crate::{daylio, merge, Daylio, NUMBER_OF_PREDEFINED_MOODS};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {

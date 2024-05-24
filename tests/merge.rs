@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use color_eyre::Result;
-    use daylio_tools::{load_daylio_backup, merge, CustomMood, DayEntry, Daylio, Tag};
+
+    use daylio_tools::{CustomMood, DayEntry, Daylio, load_daylio_backup, merge, Tag};
 
     fn base_input() -> Daylio {
         Daylio {

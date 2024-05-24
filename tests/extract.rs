@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod tests {
     use color_eyre::Result;
-    use daylio_tools::{
-        load_daylio_backup, load_daylio_pdf, CustomMood, DayEntry, Daylio, Metadata, Tag,
-    };
     use similar_asserts::assert_eq;
+
+    use daylio_tools::{
+        CustomMood, DayEntry, Daylio, load_daylio_backup, load_daylio_pdf, Metadata, Tag,
+    };
 
     #[test]
     fn daylio_format() -> Result<()> {

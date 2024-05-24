@@ -1,5 +1,5 @@
-use crate::daylio::{CustomMood, Daylio, Tag};
 use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
+use crate::daylio::{CustomMood, Daylio, Tag};
 
 #[derive(Clone, Copy)]
 struct IdGenerator {
