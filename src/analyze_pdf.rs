@@ -238,7 +238,7 @@ impl From<ProcessedDayEntry> for daylio::DayEntry {
             day: i64::from(entry.date.day()),
             month: i64::from(entry.date.month()) - 1, // month is 0-indexed in Daylio
             year: i64::from(entry.date.year()),
-            datetime: entry.date.timestamp_millis(),
+            datetime: entry.date.and_utc().timestamp_millis(),
             mood: entry.mood,
             note: entry.note,
             tags: entry.tags,

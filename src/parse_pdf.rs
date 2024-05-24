@@ -390,7 +390,7 @@ pub(crate) mod tests {
         let mut file = std::fs::File::open(TEST_PDF_TXT).unwrap();
         let mut res = String::new();
         file.read_to_string(&mut res).unwrap();
-        res
+        res.replace("\r\n", "\n")
     }
 
     #[test]

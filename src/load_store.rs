@@ -3,10 +3,10 @@ use std::io::prelude::*;
 use std::io::Read;
 use std::path::Path;
 
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use color_eyre::eyre::{eyre, ContextCompat, WrapErr};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use color_eyre::eyre::{ContextCompat, eyre, WrapErr};
 use color_eyre::Result;
-use zip::write::FileOptions;
+use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 use crate::analyze_pdf::ProcessedPdf;
@@ -59,7 +59,7 @@ pub fn store_daylio_backup(daylio: &Daylio, path: &Path) -> Result<()> {
     let file = File::create(path)?;
 
     let mut archive = ZipWriter::new(file);
-    let options = FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     let json = serde_json::to_string_pretty(daylio)?;
 
