@@ -8,16 +8,16 @@ use std::path::Path;
 use chrono::NaiveDate;
 use color_eyre::eyre::{ContextCompat, WrapErr};
 use color_eyre::Result;
-use nom::{Finish, Parser};
 use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
 use nom::combinator::{eof, map, map_res};
 use nom::multi::{count, many_till};
-use nom::sequence::{delimited, preceded, terminated, tuple};
+use nom::sequence::{delimited, preceded, terminated};
+use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
 
-type IResult<I, O> = nom::IResult<I, O, nom::error::VerboseError<I>>;
+type IResult<I, O> = nom::IResult<I, O, nom_language::error::VerboseError<I>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct StatLine {
@@ -56,33 +56,33 @@ fn read_line(input: &str) -> IResult<&str, &str> {
     map(
         terminated(take_till(|c| c == '\n'), line_ending),
         |line: &str| line.trim(),
-    )(input)
+    ).parse(input)
 }
 
 fn parse_header(input: &str) -> IResult<&str, Vec<&str>> {
     map(many_till(read_line, count(line_ending, 3)), |(lines, _)| {
         lines
-    })(input)
+    }).parse(input)
 }
 
 fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
     map(
         preceded(
             multispace0,
-            tuple((
+            (
                 terminated(take_until("  "), multispace0),
                 map_res(terminated(digit1, one_of("×x")), str::parse::<u32>),
-            )),
+            ),
         ),
         |(name, count)| StatLine::new(name.to_string(), count),
-    )(input)
+    ).parse(input)
 }
 
 fn parse_stat_lines(input: &str) -> IResult<&str, Vec<StatLine>> {
     map(
         many_till(parse_stat_line, count(line_ending, 4)),
         |(tags, _)| tags,
-    )(input)
+    ).parse(input)
 }
 
 /// differences between english and french:
@@ -135,7 +135,7 @@ fn string_to_date(date: &str) -> Result<NaiveDate> {
 }
 
 fn parse_date(input: &str) -> IResult<&str, NaiveDate> {
-    map_res(take_until("  "), string_to_date)(input)
+    map_res(take_until("  "), string_to_date).parse(input)
 }
 
 /// Example: ALL CAPS MOOD\n
@@ -169,7 +169,7 @@ fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)>
         (no_empty_lines.collect(), date)
     });
 
-    preceded(multispace0, body)(input)
+    preceded(multispace0, body).parse(input)
 }
 
 /// A day entry looks like this:
@@ -196,10 +196,10 @@ fn parse_day_entries(input: &str) -> IResult<&str, Vec<DayEntry>> {
     // We use the date as a separator, as it is the only thing that is guaranteed to be there.
     // But the date is the first thing we parse, so we're gonna be off by one.
 
-    let (input, mut prev_date) = map(parse_date, Some)(input)?;
+    let (input, mut prev_date) = map(parse_date, Some).parse(input)?;
 
     let parse_day = map(
-        tuple((parse_mood, parse_day_hour, parse_note_body)),
+        (parse_mood, parse_day_hour, parse_note_body),
         |(mood, day_hour, (note, next_date))| {
             prev_date?; // if there's no date, we're at the end of the file
 
@@ -214,12 +214,12 @@ fn parse_day_entries(input: &str) -> IResult<&str, Vec<DayEntry>> {
         },
     );
 
-    let res = map(many_till(parse_day, eof), |(days, _)| days)(input);
+    let res = map(many_till(parse_day, eof), |(days, _)| days).parse(input);
     res.map(|(input, days)| (input, days.into_iter().flatten().collect()))
 }
 
 fn parse_page_number(input: &str) -> IResult<&str, &str> {
-    delimited(space0, digit1, line_ending)(input)
+    delimited(space0, digit1, line_ending).parse(input)
 }
 
 #[derive(Debug, Clone)]
@@ -241,14 +241,14 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
     let first_page = preceded(parse_header, parse_stat_lines);
 
-    let mut parser = tuple((first_page, parse_day_entries));
+    let mut parser = (first_page, parse_day_entries);
 
-    parser(input)
+    parser.parse(input)
         .finish()
         .map(|(_, (stats, day_entries))| ParsedPdf { stats, day_entries })
         .map_err(|e| {
             ParsePdfError {
-                json: nom::error::convert_error(input, e),
+                json: nom_language::error::convert_error(input, e),
             }
             .into()
         })
