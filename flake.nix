@@ -1,51 +1,53 @@
 {
+  description = "A Nix-flake-based Rust development environment";
+
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
-    fenix = {
-      url = "github:nix-community/fenix";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    devenv.url = "github:cachix/devenv";
-  };
-
-  nixConfig = {
-    extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
-    extra-substituters = "https://devenv.cachix.org";
   };
 
   outputs = {
     self,
     nixpkgs,
-    devenv,
-    ...
-  } @ inputs: let
-    pkgs = nixpkgs.legacyPackages."x86_64-linux";
+    rust-overlay,
+  }: let
+    supportedSystems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
+    forEachSupportedSystem = f:
+      nixpkgs.lib.genAttrs supportedSystems (system:
+        f {
+          pkgs = import nixpkgs {
+            inherit system;
+            overlays = [rust-overlay.overlays.default self.overlays.default];
+          };
+        });
   in {
-    devShell.x86_64-linux = devenv.lib.mkShell {
-      inherit inputs pkgs;
-      modules = [
-        ({pkgs, ...}: {
-          packages = with pkgs; [
-            alejandra
-            cmake
-            freetype
-            git
-            poppler.dev
-            pkgconfig
-          ];
-
-          languages.rust = {
-            enable = true;
-            channel = "stable";
-          };
-
-          pre-commit.hooks = {
-            alejandra.enable = true;
-            clippy.enable = true;
-            rustfmt.enable = true;
-          };
-        })
-      ];
+    overlays.default = final: prev: {
+      rustToolchain = final.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
     };
+
+    devShells = forEachSupportedSystem ({pkgs}: {
+      default = pkgs.mkShell {
+        packages = with pkgs; [
+          rustToolchain
+          openssl
+          pkg-config
+          cargo-deny
+          cargo-edit
+          cargo-watch
+          rust-analyzer
+
+          cmake
+          poppler.dev
+        ];
+
+        env = {
+          # Required by rust-analyzer
+          RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+        };
+      };
+    });
   };
 }
