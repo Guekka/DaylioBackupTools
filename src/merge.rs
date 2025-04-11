@@ -1,5 +1,5 @@
-use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
 use crate::daylio::{CustomMood, Daylio, Tag};
+use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
 
 #[derive(Clone, Copy)]
 struct IdGenerator {
@@ -75,13 +75,13 @@ impl Daylio {
         tag.id = new_id;
     }
 
-    fn make_ids_distinct(&mut self, gen: &mut IdGenerator) {
+    fn make_ids_distinct(&mut self, id_gen: &mut IdGenerator) {
         for mood in &mut self.custom_moods {
-            Daylio::change_mood_id(&mut self.day_entries, mood, gen.next());
+            Daylio::change_mood_id(&mut self.day_entries, mood, id_gen.next());
         }
 
         for tag in &mut self.tags {
-            Daylio::change_tag_id(&mut self.day_entries, tag, gen.next());
+            Daylio::change_tag_id(&mut self.day_entries, tag, id_gen.next());
         }
     }
 
