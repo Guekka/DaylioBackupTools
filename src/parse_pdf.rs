@@ -6,8 +6,8 @@ use std::mem;
 use std::path::Path;
 
 use chrono::NaiveDate;
-use color_eyre::eyre::{ContextCompat, WrapErr};
 use color_eyre::Result;
+use color_eyre::eyre::{ContextCompat, WrapErr};
 use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
@@ -56,13 +56,15 @@ fn read_line(input: &str) -> IResult<&str, &str> {
     map(
         terminated(take_till(|c| c == '\n'), line_ending),
         |line: &str| line.trim(),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 fn parse_header(input: &str) -> IResult<&str, Vec<&str>> {
     map(many_till(read_line, count(line_ending, 3)), |(lines, _)| {
         lines
-    }).parse(input)
+    })
+    .parse(input)
 }
 
 fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
@@ -75,14 +77,16 @@ fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
             ),
         ),
         |(name, count)| StatLine::new(name.to_string(), count),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 fn parse_stat_lines(input: &str) -> IResult<&str, Vec<StatLine>> {
     map(
         many_till(parse_stat_line, count(line_ending, 4)),
         |(tags, _)| tags,
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 /// differences between english and french:
@@ -243,7 +247,8 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
     let mut parser = (first_page, parse_day_entries);
 
-    parser.parse(input)
+    parser
+        .parse(input)
         .finish()
         .map(|(_, (stats, day_entries))| ParsedPdf { stats, day_entries })
         .map_err(|e| {

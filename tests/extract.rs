@@ -4,7 +4,7 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use daylio_tools::{
-        CustomMood, DayEntry, Daylio, load_daylio_backup, load_daylio_pdf, Metadata, Tag,
+        CustomMood, DayEntry, Daylio, Metadata, Tag, load_daylio_backup, load_daylio_pdf,
     };
 
     #[test]

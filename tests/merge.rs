@@ -2,7 +2,7 @@
 mod tests {
     use color_eyre::Result;
 
-    use daylio_tools::{CustomMood, DayEntry, Daylio, load_daylio_backup, merge, Tag};
+    use daylio_tools::{CustomMood, DayEntry, Daylio, Tag, load_daylio_backup, merge};
 
     fn base_input() -> Daylio {
         Daylio {
