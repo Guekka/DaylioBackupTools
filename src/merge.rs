@@ -25,33 +25,7 @@ impl IdGenerator {
     }
 }
 
-trait ProjectEq<T> {
-    fn project(&self) -> T;
-}
-
-impl ProjectEq<(String, i64)> for CustomMood {
-    fn project(&self) -> (String, i64) {
-        (self.custom_name.to_lowercase(), self.mood_group_id)
-    }
-}
-
-impl PartialEq for CustomMood {
-    fn eq(&self, other: &Self) -> bool {
-        self.project() == other.project()
-    }
-}
-
-impl ProjectEq<String> for Tag {
-    fn project(&self) -> String {
-        self.name.to_lowercase()
-    }
-}
-
-impl PartialEq for Tag {
-    fn eq(&self, other: &Self) -> bool {
-        self.project() == other.project()
-    }
-}
+const MILLISECONDS_IN_A_DAY: i64 = 24 * 60 * 60 * 1000;
 
 impl Daylio {
     fn change_mood_id(day_entries: &mut [DayEntry], mood: &mut CustomMood, new_id: i64) {
@@ -65,9 +39,9 @@ impl Daylio {
 
     fn change_tag_id(day_entries: &mut [DayEntry], tag: &mut Tag, new_id: i64) {
         for entry in day_entries {
-            for i in 0..entry.tags.len() {
-                if entry.tags[i] == tag.id {
-                    entry.tags[i] = new_id;
+            for entry_tag in &mut entry.tags {
+                if *entry_tag == tag.id {
+                    *entry_tag = new_id;
                     break;
                 }
             }
@@ -85,45 +59,150 @@ impl Daylio {
         }
     }
 
-    fn remove_duplicates(&mut self) {
-        // for moods
-        self.custom_moods.sort_by_key(ProjectEq::project);
+    pub fn add_unique_moods(&mut self, mergee: &mut Daylio) {
+        let is_mergeable = |mood1: &CustomMood, mood2: &CustomMood| {
+            // Either both are the same predefined mood, or both are custom moods with the same name
+            (mood1.predefined_name_id == mood2.predefined_name_id && mood1.predefined_name_id != -1)
+                || (mood1.custom_name.to_uppercase() == mood2.custom_name.to_uppercase()
+                    && mood1.predefined_name_id == -1
+                    && mood2.predefined_name_id == -1)
+        };
 
-        for i in 1..self.custom_moods.len() {
-            if self.custom_moods[i - 1] == self.custom_moods[i] {
-                let new_id = self.custom_moods[i - 1].id;
-                Daylio::change_mood_id(&mut self.day_entries, &mut self.custom_moods[i], new_id);
-                self.custom_moods[i].id = -1; // mark for deletion
+        let sort_by = |lhs: &CustomMood, rhs: &CustomMood| {
+            lhs.predefined_name_id.cmp(&rhs.predefined_name_id).then(
+                lhs.custom_name
+                    .to_uppercase()
+                    .cmp(&rhs.custom_name.to_uppercase()),
+            )
+        };
+
+        self.custom_moods.sort_by(sort_by);
+        mergee.custom_moods.sort_by(sort_by);
+
+        let mut left_index = 0;
+        let mut right_index = 0;
+
+        while left_index < self.custom_moods.len() && right_index < mergee.custom_moods.len() {
+            let self_mood = &mut self.custom_moods[left_index];
+            let added_mood = &mut mergee.custom_moods[right_index];
+
+            if is_mergeable(self_mood, added_mood) {
+                Daylio::change_mood_id(&mut mergee.day_entries, added_mood, self_mood.id);
+                right_index += 1;
+            } else if sort_by(self_mood, added_mood) == std::cmp::Ordering::Less {
+                left_index += 1;
+            } else {
+                self.custom_moods.insert(left_index, added_mood.clone());
+                left_index += 1;
+                right_index += 1;
             }
         }
 
-        self.custom_moods.retain(|mood| mood.id != -1);
+        // Add the remaining moods from mergee
+        while right_index < mergee.custom_moods.len() {
+            let added_mood = &mut mergee.custom_moods[right_index];
+            self.custom_moods.push(added_mood.clone());
+            right_index += 1;
+        }
+    }
 
-        // for tags
-        self.tags.sort_by_key(ProjectEq::project);
+    pub fn add_unique_tags(&mut self, mergee: &mut Daylio) {
+        let is_mergeable = |tag1: &Tag, tag2: &Tag| tag1.name == tag2.name;
 
-        for i in 1..self.tags.len() {
-            if self.tags[i - 1] == self.tags[i] {
-                let new_id = self.tags[i - 1].id;
-                Daylio::change_tag_id(&mut self.day_entries, &mut self.tags[i], new_id);
-                self.tags[i].id = -1; // mark for deletion
+        let sort_by = |lhs: &Tag, rhs: &Tag| lhs.name.cmp(&rhs.name);
+        self.tags.sort_by(sort_by);
+        mergee.tags.sort_by(sort_by);
+
+        let mut left_index = 0;
+        let mut right_index = 0;
+
+        while left_index < self.tags.len() && right_index < mergee.tags.len() {
+            let self_tag = &mut self.tags[left_index];
+            let added_tag = &mut mergee.tags[right_index];
+
+            if is_mergeable(self_tag, added_tag) {
+                Daylio::change_tag_id(&mut mergee.day_entries, added_tag, self_tag.id);
+                right_index += 1;
+            } else if sort_by(self_tag, added_tag) == std::cmp::Ordering::Less {
+                left_index += 1;
+            } else {
+                self.tags.insert(left_index, added_tag.clone());
+                left_index += 1;
+                right_index += 1;
             }
         }
 
-        self.tags.retain(|tag| tag.id != -1);
+        // Add the remaining tags from mergee
+        while right_index < mergee.tags.len() {
+            let added_tag = &mut mergee.tags[right_index];
+            self.tags.push(added_tag.clone());
+            right_index += 1;
+        }
+    }
 
-        // for entries
-        self.day_entries
-            .sort_by_key(|x| (x.datetime, x.year, x.month));
+    pub fn add_unique_entries(&mut self, mergee: &mut Daylio) {
+        // Aggressive simplification of the note: only keep alphanumeric characters
+        fn simplify_note_for_comparing(entry: &DayEntry) -> String {
+            (entry.note_title.clone() + &entry.note)
+                .chars()
+                .filter(|c| c.is_alphanumeric())
+                .map(|c| c.to_ascii_lowercase())
+                .collect()
+        }
 
-        for i in 1..self.day_entries.len() {
-            // we do not want to lose any data, so they need to be exactly the same
-            if self.day_entries[i - 1] == self.day_entries[i] {
-                self.day_entries[i].id = -1; // mark for deletion
+        fn is_mergeable(lhs: &mut DayEntry, rhs: &mut DayEntry) -> bool {
+            // 1. They have the same mood
+            let is_same_mood = lhs.mood == rhs.mood;
+
+            // 2. They have almost the same date
+            let timestamp_diff = (lhs.datetime - rhs.datetime).abs();
+            let is_same_day = timestamp_diff < MILLISECONDS_IN_A_DAY;
+
+            // 3. They have the same tags
+            lhs.tags.sort_unstable();
+            rhs.tags.sort_unstable();
+            let is_same_tags = lhs.tags == rhs.tags;
+
+            // 4. They have the same alphanumeric content
+            let same_note = simplify_note_for_comparing(lhs) == simplify_note_for_comparing(rhs);
+
+            is_same_day && is_same_mood && is_same_tags && same_note
+        }
+
+        let sort_by = |lhs: &DayEntry, rhs: &DayEntry| {
+            lhs.datetime
+                .cmp(&rhs.datetime)
+                .then(lhs.mood.cmp(&rhs.mood))
+                .then(lhs.tags.cmp(&rhs.tags))
+        };
+
+        self.day_entries.sort_by(sort_by);
+        mergee.day_entries.sort_by(sort_by);
+
+        let mut left_index = 0;
+        let mut right_index = 0;
+
+        while left_index < self.day_entries.len() && right_index < mergee.day_entries.len() {
+            let self_entry = &mut self.day_entries[left_index];
+            let added_entry = &mut mergee.day_entries[right_index];
+
+            if is_mergeable(self_entry, added_entry) {
+                right_index += 1;
+            } else if sort_by(self_entry, added_entry) == std::cmp::Ordering::Less {
+                left_index += 1;
+            } else {
+                self.day_entries.insert(left_index, added_entry.clone());
+                left_index += 1;
+                right_index += 1;
             }
         }
 
-        self.day_entries.retain(|entry| entry.id != -1);
+        // Add the remaining entries from mergee
+        while right_index < mergee.day_entries.len() {
+            let added_entry = &mut mergee.day_entries[right_index];
+            self.day_entries.push(added_entry.clone());
+            right_index += 1;
+        }
     }
 
     pub fn sanitize(&mut self) {
@@ -186,28 +265,24 @@ impl Daylio {
 /// We assume the files have version 15, but this is not checked.
 /// We keep everything from the first file, and add the new entries from the other files
 #[must_use]
-pub fn merge(mut daylio1: Daylio, mut daylio2: Daylio) -> Daylio {
+pub fn merge(mut reference: Daylio, mut mergee: Daylio) -> Daylio {
     const BIG_OFFSET: i64 = 1000;
 
     // first_pass: make sure we don't have any duplicates id
     let mut id_generator = IdGenerator::new(BIG_OFFSET);
-    daylio1.make_ids_distinct(&mut id_generator);
-    daylio2.make_ids_distinct(&mut id_generator);
+    reference.make_ids_distinct(&mut id_generator);
+    mergee.make_ids_distinct(&mut id_generator);
 
-    let mut merged = daylio1;
-    merged
-        .custom_moods
-        .append(&mut daylio2.custom_moods.clone());
-    merged.tags.append(&mut daylio2.tags.clone());
-    merged.day_entries.append(&mut daylio2.day_entries.clone());
+    reference.add_unique_moods(&mut mergee);
+    reference.add_unique_tags(&mut mergee);
+    reference.add_unique_entries(&mut mergee);
 
-    merged.remove_duplicates();
-    merged.sanitize();
+    reference.sanitize();
 
     // update metadata
-    merged.metadata.number_of_entries = merged.day_entries.len() as i64;
-    merged.metadata.number_of_photos += daylio2.metadata.number_of_photos;
-    merged.metadata.photos_size += daylio2.metadata.photos_size;
+    reference.metadata.number_of_entries = reference.day_entries.len() as i64;
+    reference.metadata.number_of_photos += mergee.metadata.number_of_photos;
+    reference.metadata.photos_size += mergee.metadata.photos_size;
 
-    merged
+    reference
 }

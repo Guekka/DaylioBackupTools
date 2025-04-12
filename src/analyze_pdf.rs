@@ -60,7 +60,7 @@ fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
 
     // sanitize hour
     if hour == "00" {
-        hour = "12".to_owned();
+        "12".clone_into(&mut hour);
     }
 
     Ok(format!("{hour} {minute} {am_pm}"))
@@ -90,7 +90,7 @@ fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>
     let mut last_tag_line = None;
     for (i, line) in entry.note.iter().enumerate() {
         for tag in stats {
-            // tag comparison is case sensitive
+            // tag comparison is case-sensitive
             if line.contains(&tag.name) {
                 entry_tags.push(tag.name.clone());
                 last_tag_line = Some(i);
@@ -164,6 +164,14 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
     let mut moods: Vec<Mood> = moods.into_iter().collect();
     moods.sort_by_key(|mood| parsed.stats.iter().position(|stat| stat.name == mood.name));
     update_mood_category(&mut moods);
+
+    // trim whitespace
+    for tag in &mut tags {
+        tag.name = tag.name.trim().to_owned();
+    }
+    for mood in &mut moods {
+        mood.name = mood.name.trim().to_owned();
+    }
 
     (tags.into_iter().collect(), moods)
 }

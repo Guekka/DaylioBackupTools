@@ -3,6 +3,169 @@ mod tests {
     use color_eyre::Result;
 
     use daylio_tools::{CustomMood, DayEntry, Daylio, Tag, load_daylio_backup, merge};
+    use similar_asserts::assert_eq;
+
+    #[test]
+    fn duplicates_removal() {
+        // duplicated pre-defined mood
+        let custom_moods = vec![
+            // duplicated pre-defined mood
+            CustomMood {
+                id: 2,
+                custom_name: "Predefined".to_owned(),
+                icon_id: 2,
+                predefined_name_id: 1,
+                state: 1,
+                mood_group_id: 2,
+                mood_group_order: 1,
+                created_at: 1,
+            },
+            // next 2: everything differs except name
+            CustomMood {
+                id: 3,
+                custom_name: "Mood".to_owned(),
+                icon_id: 3,
+                predefined_name_id: -1,
+                state: 0,
+                mood_group_id: 3,
+                mood_group_order: 2,
+                created_at: 2,
+            },
+            CustomMood {
+                id: 4,
+                custom_name: "Mood".to_owned(),
+                mood_group_id: 4,
+                mood_group_order: 0,
+                icon_id: 1,
+                predefined_name_id: -1,
+                state: 0,
+                created_at: 14582,
+            },
+            // this one is unique
+            CustomMood {
+                id: 5,
+                custom_name: "Unique".to_owned(),
+                icon_id: 1,
+                predefined_name_id: -1,
+                state: 0,
+                mood_group_id: 3,
+                mood_group_order: 4,
+                created_at: 2,
+            },
+        ];
+
+        let duplicate_tag = Tag {
+            id: 2,
+            name: "Duplicate name".to_owned(),
+            created_at: 1278,
+            icon: 2,
+            order: 1,
+            state: 1,
+            id_tag_group: 1,
+        };
+        let unique_tag = Tag {
+            id: 3,
+            name: "Unique".to_owned(),
+            created_at: 1278,
+            icon: 2,
+            order: 1,
+            state: 1,
+            id_tag_group: 1,
+        };
+
+        // next 2: same text, but with line breaks
+        // title is separated in one, text in the other
+        // date is slightly different
+        // same mood, same tags
+        let original_entry = DayEntry {
+            id: 2,
+            minute: 20,
+            hour: 11, // <-- different
+            day: 5,
+            month: 4,
+            year: 2021,
+            datetime: 1617621600000, // <-- different
+            time_zone_offset: 1,     // <-- different
+            mood: 1,
+            note: "This is a note with a line break\n".to_owned(),
+            note_title: "Note title".to_owned(),
+            tags: vec![],
+            assets: vec![],
+        };
+
+        let pdf_entry = DayEntry {
+            id: 1,
+            minute: 20,
+            hour: 10,
+            day: 5,
+            month: 4,
+            year: 2021,
+            datetime: 1617618000000,
+            time_zone_offset: 0,
+            mood: 2,
+            note: "Note titleThis is a note with a line break\n".to_owned(),
+            note_title: "".to_owned(),
+            tags: vec![],
+            assets: vec![],
+        };
+
+        let original_entry2 = DayEntry {
+            id: 1,
+            minute: 1,
+            hour: 11,
+            day: 23,
+            month: 6,
+            year: 2022,
+            datetime: 1658566889780,
+            time_zone_offset: 7200000,
+            mood: 9,
+            note: "Je viens de discuter avec mamie. Je le savais déjà, mais elle m'a répété qu'elle avait d'être restée".to_owned(),
+            note_title: String::new(),
+            tags: vec![],
+            assets: vec![],
+        };
+
+        let pdf_entry2 = DayEntry {
+            id: 12,
+            minute: 1,
+            hour: 11,
+            day: 23,
+            month: 6,
+            year: 2022,
+            datetime: 1658574060000,
+            time_zone_offset: 0,
+            mood: 9,
+            note: "Je\nviens de discuter avec mamie. -Je le savais déjà, mais elle m'a répété qu'elle avait d'être\nrestée ...\n".to_owned(),
+            note_title: String::new(),
+            tags: vec![],
+            assets: vec![],
+        };
+
+        let original_daylio = Daylio {
+            tags: vec![duplicate_tag.clone(), unique_tag.clone()],
+            day_entries: vec![original_entry.clone(), original_entry2.clone()],
+            ..Default::default()
+        };
+
+        let pdf_daylio = Daylio {
+            custom_moods,
+            tags: vec![duplicate_tag],
+            day_entries: vec![pdf_entry, pdf_entry2],
+            ..Default::default()
+        };
+
+        // remove duplicates
+        let merged = merge(original_daylio, pdf_daylio);
+
+        // check that there are no duplicates
+        assert_eq!(merged.custom_moods.len(), 8);
+        assert_eq!(merged.tags.len(), 2);
+
+        // the ones from left are preserved
+        let expected_entries = vec![original_entry2, original_entry];
+
+        assert_eq!(merged.day_entries, expected_entries);
+    }
 
     fn base_input() -> Daylio {
         Daylio {
@@ -158,6 +321,8 @@ mod tests {
         let input2 = Daylio::default();
 
         let mut expected = input1.clone();
+
+        println!("input1: {:#?}", input1.custom_moods);
 
         expected.tags = vec![
             Tag {
