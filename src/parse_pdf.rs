@@ -12,7 +12,7 @@ use nom::branch::alt;
 use nom::bytes::complete::{take_till, take_until};
 use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
 use nom::combinator::{eof, map, map_res};
-use nom::multi::{count, many_till};
+use nom::multi::{count, many_m_n, many_till};
 use nom::sequence::{delimited, preceded, terminated};
 use nom::{Finish, Parser};
 use pdftotext::pdftotext_layout;
@@ -81,12 +81,45 @@ fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
     .parse(input)
 }
 
-fn parse_stat_lines(input: &str) -> IResult<&str, Vec<StatLine>> {
+fn parse_stat_lines(input: &str) -> IResult<&str, Vec<Vec<StatLine>>> {
     map(
-        many_till(parse_stat_line, count(line_ending, 4)),
+        many_till(
+            many_m_n(1, 3, parse_stat_line), // 3 columns layout
+            count(line_ending, 4),           // ended with 4 line endings
+        ),
         |(tags, _)| tags,
     )
     .parse(input)
+}
+
+/// Transpose a 2D vector, assuming all rows are the same length
+fn transpose<T: Clone>(input: Vec<Vec<T>>) -> Vec<Vec<T>> {
+    if input.is_empty() {
+        return vec![];
+    }
+
+    if input[0].is_empty() {
+        return vec![vec![]; input.len()];
+    }
+
+    let mut res = vec![Vec::new(); input[0].len()];
+
+    for row in input {
+        for (i, item) in row.into_iter().enumerate() {
+            res[i].push(item);
+        }
+    }
+
+    res
+}
+fn parse_stat_lines_with_corrected_order(input: &str) -> IResult<&str, Vec<StatLine>> {
+    map(parse_stat_lines, |lines| {
+        transpose(lines).iter().fold(vec![], |mut acc, line| {
+            acc.extend(line.iter().cloned());
+            acc
+        })
+    })
+        .parse(input)
 }
 
 /// differences between english and french:
@@ -243,7 +276,7 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
     let text = extract_txt(path)?;
     let input = text.as_str();
 
-    let first_page = preceded(parse_header, parse_stat_lines);
+    let first_page = preceded(parse_header, parse_stat_lines_with_corrected_order);
 
     let mut parser = (first_page, parse_day_entries);
 
@@ -282,23 +315,7 @@ pub(crate) mod tests {
                     count: 1,
                 },
                 StatLine {
-                    name: "manger sain".to_owned(),
-                    count: 2,
-                },
-                StatLine {
-                    name: "exercice".to_owned(),
-                    count: 1,
-                },
-                StatLine {
                     name: "meh".to_owned(),
-                    count: 1,
-                },
-                StatLine {
-                    name: "ménage".to_owned(),
-                    count: 2,
-                },
-                StatLine {
-                    name: "sport".to_owned(),
                     count: 1,
                 },
                 StatLine {
@@ -306,19 +323,35 @@ pub(crate) mod tests {
                     count: 1,
                 },
                 StatLine {
-                    name: "famille".to_owned(),
-                    count: 1,
-                },
-                StatLine {
-                    name: "films".to_owned(),
-                    count: 1,
-                },
-                StatLine {
                     name: "awful".to_owned(),
                     count: 2,
                 },
                 StatLine {
+                    name: "manger sain".to_owned(),
+                    count: 2,
+                },
+                StatLine {
+                    name: "ménage".to_owned(),
+                    count: 2,
+                },
+                StatLine {
+                    name: "famille".to_owned(),
+                    count: 1,
+                },
+                StatLine {
                     name: "rendez vous".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "exercice".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "sport".to_owned(),
+                    count: 1,
+                },
+                StatLine {
+                    name: "films".to_owned(),
                     count: 1,
                 },
                 StatLine {
@@ -435,30 +468,30 @@ pub(crate) mod tests {
         */
         vec![
             StatLine::new("rad".to_owned(), 15),
-            StatLine::new("Tag 21 NUD".to_owned(), 9),
-            StatLine::new("Tag 8 WNA".to_owned(), 2),
             StatLine::new("Mood 0 KWY".to_owned(), 5),
-            StatLine::new("Tag 11 XRB".to_owned(), 8),
-            StatLine::new("Tag 14 NEU".to_owned(), 2),
             StatLine::new("good".to_owned(), 20),
-            StatLine::new("Tag 6 AUG".to_owned(), 6),
-            StatLine::new("Tag 9 MAS".to_owned(), 1),
             StatLine::new("Mood 1 QBL".to_owned(), 13),
-            StatLine::new("Tag 10 OKU".to_owned(), 6),
-            StatLine::new("Tag 16 QUG".to_owned(), 1),
             StatLine::new("meh".to_owned(), 1),
-            StatLine::new("Tag 23 CLN".to_owned(), 5),
-            StatLine::new("Tag 22 ITV".to_owned(), 1),
             StatLine::new("Mood 2 VUP".to_owned(), 8),
-            StatLine::new("Tag 2 NWR".to_owned(), 4),
-            StatLine::new("Tag 24 KVI".to_owned(), 1),
             StatLine::new("bad".to_owned(), 2),
-            StatLine::new("Tag 12 LRD".to_owned(), 3),
-            StatLine::new("Tag 25 CGQ".to_owned(), 1),
             StatLine::new("Tag 5 IGN".to_owned(), 14),
-            StatLine::new("Tag 0 AHY".to_owned(), 2),
-            StatLine::new("Tag 33 IQP".to_owned(), 1),
             StatLine::new("Tag 4 HBK".to_owned(), 10),
+            StatLine::new("Tag 21 NUD".to_owned(), 9),
+            StatLine::new("Tag 11 XRB".to_owned(), 8),
+            StatLine::new("Tag 6 AUG".to_owned(), 6),
+            StatLine::new("Tag 10 OKU".to_owned(), 6),
+            StatLine::new("Tag 23 CLN".to_owned(), 5),
+            StatLine::new("Tag 2 NWR".to_owned(), 4),
+            StatLine::new("Tag 12 LRD".to_owned(), 3),
+            StatLine::new("Tag 0 AHY".to_owned(), 2),
+            StatLine::new("Tag 8 WNA".to_owned(), 2),
+            StatLine::new("Tag 14 NEU".to_owned(), 2),
+            StatLine::new("Tag 9 MAS".to_owned(), 1),
+            StatLine::new("Tag 16 QUG".to_owned(), 1),
+            StatLine::new("Tag 22 ITV".to_owned(), 1),
+            StatLine::new("Tag 24 KVI".to_owned(), 1),
+            StatLine::new("Tag 25 CGQ".to_owned(), 1),
+            StatLine::new("Tag 33 IQP".to_owned(), 1),
         ]
     }
 
@@ -467,7 +500,7 @@ pub(crate) mod tests {
         let txt = get_txt();
         let input = parse_header(txt.as_str()).unwrap().0; // skip header
 
-        let parsed = parse_stat_lines(input).unwrap();
+        let parsed = parse_stat_lines_with_corrected_order(input).unwrap();
 
         let expected_in = &input[661..];
         let expected_parsed = expected_parsed_tags();

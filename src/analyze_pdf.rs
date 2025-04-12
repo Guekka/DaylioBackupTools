@@ -161,7 +161,12 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
 
     // sort moods according to the order they appear in the PDF
     let mut moods: Vec<Mood> = moods.into_iter().collect();
-    moods.sort_by_key(|mood| parsed.stats.iter().position(|stat| stat.name == mood.name));
+    moods.sort_by_key(|mood| {
+        parsed
+            .stats
+            .iter()
+            .position(|stat| stat.name.to_uppercase() == mood.name.to_uppercase())
+    });
     update_mood_category(&mut moods);
 
     // trim whitespace

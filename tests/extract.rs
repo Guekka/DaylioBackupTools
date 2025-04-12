@@ -164,7 +164,7 @@ mod tests {
                     mood: 1,
                     note: "Note title\nNote body".to_owned(), // we lose separation between title and body
                     note_title: String::new(),
-                    tags: vec![1, 5, 8, 2, 6],
+                    tags: vec![5, 2, 6, 1, 8],
                     assets: vec![],
                 },
                 DayEntry {
