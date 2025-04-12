@@ -5,6 +5,7 @@ use crate::{Daylio, NUMBER_OF_PREDEFINED_MOODS, daylio, merge};
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 use color_eyre::eyre::WrapErr;
 use color_eyre::{Result, eyre};
+use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -135,12 +136,14 @@ fn update_mood_category(moods: &mut [Mood]) {
     }
 }
 
-fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
+fn list_tags_and_moods(
+    parsed: &ParsedPdf,
+    processed_entries: &[(String, Vec<String>)],
+) -> (Vec<Tag>, Vec<Mood>) {
     let mut moods: Vec<Mood> = Vec::new();
     let mut tags: Vec<Tag> = Vec::new();
 
-    for entry in &parsed.day_entries {
-        let (_, entry_tags) = extract_tags(entry, &parsed.stats);
+    for (processed_entry, entry) in processed_entries.iter().zip(parsed.day_entries.iter()) {
         if !moods.iter().any(|m| m.name == entry.mood) {
             moods.push(Mood {
                 id: moods.len() as i64 + NUMBER_OF_PREDEFINED_MOODS,
@@ -150,11 +153,11 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
             });
         }
 
-        for tag in entry_tags {
-            if !tags.iter().any(|t| t.name == tag) {
+        for tag in &processed_entry.1 {
+            if !tags.iter().any(|t| t.name == *tag) {
                 tags.push(Tag {
                     id: tags.len() as i64,
-                    name: tag,
+                    name: tag.clone(),
                 });
             }
         }
@@ -282,15 +285,22 @@ fn simplify_note_heuristically(mut text: String) -> String {
 impl TryFrom<ParsedPdf> for ProcessedPdf {
     type Error = eyre::Error;
     fn try_from(parsed: ParsedPdf) -> std::result::Result<Self, Self::Error> {
-        let (tags, moods) = list_tags_and_moods(&parsed);
+        let processed_entries = parsed
+            .day_entries
+            .iter()
+            .map(|entry| extract_tags(entry, &parsed.stats))
+            .collect::<Vec<_>>();
+
+        let (tags, moods) = list_tags_and_moods(&parsed, &processed_entries);
 
         let day_entries = parsed
             .day_entries
             .into_iter()
-            .map(|entry| {
+            .enumerate()
+            .map(|(entry_idx, entry)| {
                 let date = parse_date(&entry).unwrap();
-                let (note, entry_tags) = extract_tags(&entry, &parsed.stats);
-                let note = simplify_note_heuristically(note);
+                let (note, entry_tags) = &processed_entries[entry_idx];
+                let note = simplify_note_heuristically(note.clone());
 
                 let entry_mood = moods.iter().find(|x| x.name == entry.mood).unwrap().id;
                 let entry_tags = entry_tags
