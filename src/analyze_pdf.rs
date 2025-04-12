@@ -1,10 +1,9 @@
 //! This module interprets the parsed PDF data into a Daylio struct.
 
-use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
-use color_eyre::{Result, eyre};
-
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
 use crate::{Daylio, NUMBER_OF_PREDEFINED_MOODS, daylio, merge};
+use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
+use color_eyre::{Result, eyre};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 struct ProcessedDayEntry {
@@ -176,6 +175,102 @@ fn list_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
     (tags.into_iter().collect(), moods)
 }
 
+/// Simplifies the note by removing unnecessary newlines and spaces. In particular:
+/// - Removes newlines before end of sentence punctuation
+/// - Removes newlines after dashes
+/// - Replaces char\nchar with char char if both chars are lowercase
+/// - Removes double or more spaces
+/// - Removes spaces before dots
+fn simplify_note_heuristically(mut text: &str) -> String {
+    const END_OF_SENTENCE_PUNCTUATION: [char; 3] = ['.', '!', '?'];
+
+    let mut simplified = String::new();
+    loop {
+        let newline_pos = text.find('\n');
+        if newline_pos.is_none() {
+            simplified.push_str(text);
+            break;
+        }
+        let newline_pos = newline_pos.unwrap();
+
+        let text_before_newline = &text[..newline_pos];
+        let text_starting_at_newline = &text[newline_pos..];
+
+        // Replaces char\nchar with char char if both chars are lowercase
+        let previous_char = text_before_newline.chars().last().unwrap_or('\0');
+        let next_char = text_starting_at_newline.chars().nth(1).unwrap_or('\0');
+
+        if previous_char.is_lowercase() && next_char.is_lowercase() {
+            simplified.push_str(&text[..newline_pos]);
+            simplified.push(' ');
+            text = &text[newline_pos + 1..];
+            continue;
+        }
+
+        let previous_meaningful_char = text_before_newline
+            .chars()
+            .rev()
+            .find(|c| !c.is_whitespace())
+            .unwrap_or('\0');
+
+        let next_meaningful_char = text_starting_at_newline
+            .chars()
+            .find(|c| !c.is_whitespace())
+            .unwrap_or('\0');
+
+        match (previous_meaningful_char, next_meaningful_char) {
+            // Remove whitespace after dashes
+            ('-', _) => {
+                simplified.push_str(text_before_newline);
+                let next_meaningful_char_pos =
+                    text_starting_at_newline.find(next_meaningful_char).unwrap();
+                text = &text_starting_at_newline[next_meaningful_char_pos..];
+            }
+            // Remove newlines before end of sentence punctuation
+            (_, c) if END_OF_SENTENCE_PUNCTUATION.contains(&c) => {
+                simplified.push_str(text_before_newline);
+                text = &text_starting_at_newline[1..];
+            }
+            // Everything else, just keep as is
+            _ => {
+                simplified.push_str(text_before_newline);
+                simplified.push('\n');
+                text = &text_starting_at_newline[1..];
+            }
+        }
+    }
+
+    // Remove double or more spaces. Using a loop is not a good idea performance-wise, but
+    // it should not matter much here since we are not dealing with huge strings and the loop
+    // will not iterate more than a few times.
+    loop {
+        let new_simplified = simplified.replace("  ", " ");
+        if new_simplified == simplified {
+            break;
+        }
+        simplified = new_simplified;
+    }
+
+    // Remove spaces before dots
+    simplified = simplified.replace(" .", ".");
+
+    simplified
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_owned()
+}
+
+fn cleanup_unicode(text: &str) -> String {
+    text.replace("ﬃ", "ffi")
+        .replace("ﬀ", "ff")
+        .replace("ﬁ", "fi")
+        .replace("ﬂ", "fl")
+        .replace("ﬄ", "fl")
+}
+
 impl From<ParsedPdf> for ProcessedPdf {
     fn from(parsed: ParsedPdf) -> Self {
         let (tags, moods) = list_tags_and_moods(&parsed);
@@ -186,6 +281,7 @@ impl From<ParsedPdf> for ProcessedPdf {
             .map(|entry| {
                 let date = parse_date(&entry).unwrap();
                 let (note, entry_tags) = extract_tags(&entry, &parsed.stats);
+                let note = simplify_note_heuristically(&note);
 
                 let entry_mood = moods.iter().find(|x| x.name == entry.mood).unwrap().id;
                 let entry_tags = entry_tags
@@ -274,6 +370,32 @@ mod tests {
     use chrono::{Datelike, NaiveDate, Timelike};
 
     use super::*;
+
+    #[test]
+    fn test_simplify_note_heuristically() {
+        let text = r"Newline before punctuation
+. Newline after over-
+ride some spaces    and newline mid
+sentence.
+
+Preserve the empty line, but not the final one
+        
+";
+        println!("original: {}", text);
+
+        let simplified = simplify_note_heuristically(text);
+        assert_eq!(
+            simplified,
+            "Newline before punctuation. Newline after over-ride some spaces and newline mid sentence.\n\nPreserve the empty line, but not the final one"
+        );
+
+        assert_eq!(
+            simplify_note_heuristically(
+                "Elle ne peut plus parler et faire des gestes simples, mais ce\nn'est pas."
+            ),
+            "Elle ne peut plus parler et faire des gestes simples, mais ce n'est pas."
+        );
+    }
 
     #[test]
     fn test_parse_date() {

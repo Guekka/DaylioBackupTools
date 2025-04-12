@@ -41,6 +41,7 @@
 
           cmake
           poppler.dev
+          poppler-utils
         ];
 
         env = {

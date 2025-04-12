@@ -207,8 +207,8 @@ mod tests {
                     datetime: 1431806400000,
                     time_zone_offset: 0,
                     mood: 6,
-                    // the line breaks are a bit off
-                    note: "No tag\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but\nits body is really long\nThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but\nits body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but\nits body is really long\nThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but\nits body is really long".to_owned(),
+                    // the line breaks are a bit off, though partially corrected by our heuristics
+                    note: "No tag\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really long\nThis is an old note. It has no title, but its body is really longThis is an old note. It has no title, but its body is really long".to_owned(),
                     note_title: String::new(),
                     tags: vec![],
                     assets: vec![],
