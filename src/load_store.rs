@@ -37,8 +37,8 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
 
 pub fn load_daylio_pdf(path: &Path) -> Result<Daylio> {
     crate::parse_pdf::parse_pdf(path)
-        .map(Into::<ProcessedPdf>::into)
-        .map(Into::into)
+        .and_then(TryInto::<ProcessedPdf>::try_into)
+        .and_then(TryInto::<Daylio>::try_into)
 }
 
 pub fn load_daylio(path: &Path) -> Result<Daylio> {

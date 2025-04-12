@@ -3,6 +3,7 @@
 use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
 use crate::{Daylio, NUMBER_OF_PREDEFINED_MOODS, daylio, merge};
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
+use color_eyre::eyre::WrapErr;
 use color_eyre::{Result, eyre};
 
 #[derive(Debug, PartialEq, Clone, Default)]
@@ -278,8 +279,9 @@ fn simplify_note_heuristically(mut text: String) -> String {
         .to_owned()
 }
 
-impl From<ParsedPdf> for ProcessedPdf {
-    fn from(parsed: ParsedPdf) -> Self {
+impl TryFrom<ParsedPdf> for ProcessedPdf {
+    type Error = eyre::Error;
+    fn try_from(parsed: ParsedPdf) -> std::result::Result<Self, Self::Error> {
         let (tags, moods) = list_tags_and_moods(&parsed);
 
         let day_entries = parsed
@@ -305,11 +307,41 @@ impl From<ParsedPdf> for ProcessedPdf {
             })
             .collect();
 
-        ProcessedPdf {
+        let processed_pdf = ProcessedPdf {
             day_entries,
             moods,
             tags,
+        };
+
+        processed_pdf
+            .check_soundness()
+            .context("Processed PDF is not sound. Please report this bug.")?;
+
+        Ok(processed_pdf)
+    }
+}
+
+impl ProcessedPdf {
+    fn check_soundness(&self) -> Result<()> {
+        for entry in &self.day_entries {
+            if !self.moods.iter().any(|m| m.id == entry.mood) {
+                eyre::bail!("Mood {} not found in moods", entry.mood);
+            }
+
+            // check for duplicate tags
+            let unique_tags = entry.tags.iter().collect::<HashSet<_>>();
+            if unique_tags.len() != entry.tags.len() {
+                eyre::bail!("Duplicate tag found in entry {:?}", entry);
+            }
+
+            for tag in &entry.tags {
+                if !self.tags.iter().any(|t| t.id == *tag) {
+                    eyre::bail!("Tag {} not found in tags", tag);
+                }
+            }
         }
+
+        Ok(())
     }
 }
 
@@ -358,8 +390,9 @@ impl From<ProcessedDayEntry> for daylio::DayEntry {
     }
 }
 
-impl From<ProcessedPdf> for Daylio {
-    fn from(pdf: ProcessedPdf) -> Self {
+impl TryFrom<ProcessedPdf> for Daylio {
+    type Error = eyre::Error;
+    fn try_from(pdf: ProcessedPdf) -> Result<Self, Self::Error> {
         merge(
             Daylio::default(),
             Daylio {
@@ -561,7 +594,7 @@ Preserve the empty line, but not the final one
             ],
         };
 
-        let processed = ProcessedPdf::from(parsed);
+        let processed = ProcessedPdf::try_from(parsed).unwrap();
 
         assert_eq!(processed, expected);
     }

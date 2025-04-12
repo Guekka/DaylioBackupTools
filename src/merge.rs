@@ -1,5 +1,6 @@
 use crate::daylio::{CustomMood, Daylio, Tag};
 use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
+use color_eyre::eyre::Context;
 
 #[derive(Clone, Copy)]
 struct IdGenerator {
@@ -261,11 +262,18 @@ impl Daylio {
     }
 }
 
-/// Merges two daylio json files into one.
+/// Merges two daylio files into one.
 /// We assume the files have version 15, but this is not checked.
 /// We keep everything from the first file, and add the new entries from the other files
-#[must_use]
-pub fn merge(mut reference: Daylio, mut mergee: Daylio) -> Daylio {
+pub fn merge(mut reference: Daylio, mut mergee: Daylio) -> color_eyre::Result<Daylio> {
+    reference
+        .check_soundness()
+        .context("Reference file is not sound. Please check the file and try again.")?;
+
+    mergee
+        .check_soundness()
+        .context("Mergee file is not sound. Please check the file and try again.")?;
+
     const BIG_OFFSET: i64 = 1000;
 
     // first_pass: make sure we don't have any duplicates id
@@ -279,10 +287,14 @@ pub fn merge(mut reference: Daylio, mut mergee: Daylio) -> Daylio {
 
     reference.sanitize();
 
+    reference
+        .check_soundness()
+        .context("Merged file is not sound. This is a bug. Please report it.")?;
+
     // update metadata
     reference.metadata.number_of_entries = reference.day_entries.len() as i64;
     reference.metadata.number_of_photos += mergee.metadata.number_of_photos;
     reference.metadata.photos_size += mergee.metadata.photos_size;
 
-    reference
+    Ok(reference)
 }

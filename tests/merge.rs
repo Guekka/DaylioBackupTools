@@ -118,7 +118,7 @@ mod tests {
             year: 2022,
             datetime: 1658566889780,
             time_zone_offset: 7200000,
-            mood: 9,
+            mood: 1,
             note: "Je viens de discuter avec mamie. Je le savais déjà, mais elle m'a répété qu'elle avait d'être restée".to_owned(),
             note_title: String::new(),
             tags: vec![],
@@ -134,7 +134,7 @@ mod tests {
             year: 2022,
             datetime: 1658574060000,
             time_zone_offset: 0,
-            mood: 9,
+            mood: 2,
             note: "Je\nviens de discuter avec mamie. -Je le savais déjà, mais elle m'a répété qu'elle avait d'être\nrestée ...\n".to_owned(),
             note_title: String::new(),
             tags: vec![],
@@ -155,16 +155,16 @@ mod tests {
         };
 
         // remove duplicates
-        let merged = merge(original_daylio, pdf_daylio);
+        let merged = merge(original_daylio, pdf_daylio).unwrap();
 
         // check that there are no duplicates
         assert_eq!(merged.custom_moods.len(), 8);
         assert_eq!(merged.tags.len(), 2);
 
-        // the ones from left are preserved
-        let expected_entries = vec![original_entry2, original_entry];
-
-        assert_eq!(merged.day_entries, expected_entries);
+        // the entries from left are preserved
+        assert_eq!(merged.day_entries.len(), 2);
+        assert_eq!(merged.day_entries[0], original_entry2);
+        assert_eq!(merged.day_entries[1], original_entry);
     }
 
     fn base_input() -> Daylio {
@@ -273,7 +273,7 @@ mod tests {
                 year: 2022,
                 datetime: 1659481200000,
                 time_zone_offset: 7200000,
-                mood: 8,
+                mood: 6,
                 note: "".to_owned(),
                 note_title: "".to_owned(),
                 tags: vec![24],
@@ -357,7 +357,7 @@ mod tests {
                 .collect();
         }
 
-        let merged = merge(input1, input2);
+        let merged = merge(input1, input2)?;
 
         assert_eq!(merged, expected);
 
@@ -371,7 +371,7 @@ mod tests {
 
         let expected = load_daylio_backup("tests/data/merged.daylio".as_ref())?;
 
-        let merged = merge(input1, input2);
+        let merged = merge(input1, input2)?;
 
         assert_eq!(merged, expected);
 

@@ -59,7 +59,7 @@ fn main() -> Result<()> {
 
             for path in inputs.iter().skip(1) {
                 let other = load_daylio(path)?;
-                reference = merge(reference, other);
+                reference = merge(reference, other)?;
             }
             store_daylio_backup(&reference, &output)?;
         }

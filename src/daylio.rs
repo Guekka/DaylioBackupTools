@@ -1,5 +1,5 @@
+use color_eyre::eyre;
 use core::default::Default;
-
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use serde_json::Value;
@@ -29,6 +29,24 @@ pub struct Daylio {
     pub reminders: Vec<Reminder>,
     pub writing_templates: Vec<WritingTemplate>,
     pub mood_icons_default_free_pack_id: i64,
+}
+
+impl Daylio {
+    pub(crate) fn check_soundness(&self) -> eyre::Result<()> {
+        for entry in &self.day_entries {
+            if !self.custom_moods.iter().any(|mood| mood.id == entry.mood) {
+                eyre::bail!("Invalid mood id {} in entry {:?}", entry.mood, entry);
+            }
+
+            for tag in &entry.tags {
+                if !self.tags.iter().any(|t| t.id == *tag) {
+                    eyre::bail!("Invalid tag id {} in entry {:?}", tag, entry);
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Default for Daylio {
