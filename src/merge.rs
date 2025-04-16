@@ -62,19 +62,17 @@ impl Daylio {
 
     pub fn add_unique_moods(&mut self, mergee: &mut Daylio) {
         let is_mergeable = |mood1: &CustomMood, mood2: &CustomMood| {
-            // Either both are the same predefined mood, or both are custom moods with the same name
+            // Either both are the same predefined mood, or both have the same name
+            // This could lead to false positives, maybe the algorithm should be improved
             (mood1.predefined_name_id == mood2.predefined_name_id && mood1.predefined_name_id != -1)
-                || (mood1.custom_name.to_uppercase() == mood2.custom_name.to_uppercase()
-                    && mood1.predefined_name_id == -1
-                    && mood2.predefined_name_id == -1)
+                || mood1.custom_name.to_uppercase() == mood2.custom_name.to_uppercase()
         };
 
         let sort_by = |lhs: &CustomMood, rhs: &CustomMood| {
-            lhs.predefined_name_id.cmp(&rhs.predefined_name_id).then(
-                lhs.custom_name
-                    .to_uppercase()
-                    .cmp(&rhs.custom_name.to_uppercase()),
-            )
+            lhs.custom_name
+                .to_uppercase()
+                .cmp(&rhs.custom_name.to_uppercase())
+                .then(lhs.predefined_name_id.cmp(&rhs.predefined_name_id))
         };
 
         self.custom_moods.sort_by(sort_by);
@@ -216,10 +214,14 @@ impl Daylio {
             }
         }
 
-        // predefined moods have to have the same id as the predefined name
-        for mood in &mut self.custom_moods {
-            if mood.predefined_name_id != -1 {
-                Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
+        // make sure all default moods are present
+        for default_mood in Daylio::default().custom_moods {
+            if !self
+                .custom_moods
+                .iter()
+                .any(|mood| mood.predefined_name_id == default_mood.predefined_name_id)
+            {
+                self.custom_moods.push(default_mood);
             }
         }
 
@@ -231,6 +233,13 @@ impl Daylio {
         for mood in &mut self.custom_moods {
             if mood.predefined_name_id == -1 {
                 Daylio::change_mood_id(&mut self.day_entries, mood, id_generator.next());
+            }
+        }
+
+        // predefined moods have to have the same id as the predefined name
+        for mood in &mut self.custom_moods {
+            if mood.predefined_name_id != -1 {
+                Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
             }
         }
 
@@ -246,6 +255,7 @@ impl Daylio {
             }
         }
 
+        // set tags order
         self.tags.sort_by_key(|x| x.created_at);
         let mut id_generator = IdGenerator::new(1);
         for (i, tag) in self.tags.iter_mut().enumerate() {
@@ -253,6 +263,7 @@ impl Daylio {
             tag.order = i as i64 + 1;
         }
 
+        // make sure entries are sorted
         self.day_entries
             .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
         let mut id_generator = IdGenerator::new(1);

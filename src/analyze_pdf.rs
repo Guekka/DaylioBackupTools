@@ -188,7 +188,7 @@ fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
         .iter()
         .enumerate()
         .map(|(i, stat)| Mood {
-            id: i as i64 + NUMBER_OF_PREDEFINED_MOODS,
+            id: i as i64 + NUMBER_OF_PREDEFINED_MOODS + 1,
             name: stat.name.clone(),
             group: 0,
             predefined: false,
@@ -407,7 +407,7 @@ impl From<Mood> for daylio::CustomMood {
                 mood.name
             },
             mood_group_id: mood.group,
-            icon_id: 1,
+            icon_id: mood.group,
             ..Default::default()
         }
     }
