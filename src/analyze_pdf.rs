@@ -158,7 +158,7 @@ fn update_mood_category(moods: &mut [Mood]) {
             mood.predefined = true;
             prev_id = Some(idx);
         }
-        mood.group = prev_id.unwrap_or(0);
+        mood.group = prev_id.unwrap_or(1);
     }
 }
 
