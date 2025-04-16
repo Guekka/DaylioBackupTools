@@ -82,7 +82,7 @@ fn parse_stat_line(input: &str) -> IResult<&str, StatLine> {
                 map_res(terminated(digit1, one_of("×x")), str::parse::<u32>),
             ),
         ),
-        |(name, count)| StatLine::new(name.to_string(), count),
+        |(name, count)| StatLine::new(String::from(name.trim()), count),
     )
     .parse(input)
 }
@@ -294,12 +294,12 @@ fn trim_all<'b>(lines: &[&'b str]) -> Vec<&'b str> {
 fn detect_tags<'a, 'b>(body_lines: &'a mut [&'b str]) -> (Vec<&'b str>, Vec<&'b str>) {
     // We try to parse the tags using the indentation heuristic first, which is the most reliable
     if let Some((note_lines, tags)) = parse_tags_indent_heuristic(&body_lines) {
-        return (trim_all(note_lines), tags);
+        return (trim_all(note_lines), trim_all(&tags));
     }
 
     // If that fails, we try the space heuristic, which is less reliable
     if let Some((note_lines, tags)) = parse_tags_space_heuristic(&body_lines) {
-        return (trim_all(note_lines), tags);
+        return (trim_all(note_lines), trim_all(&tags));
     }
 
     // If we don't find any tags, we just return the body and an empty vector of tags
