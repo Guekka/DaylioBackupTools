@@ -2,15 +2,15 @@
 #![allow(dead_code)]
 
 use std::fmt::{Debug, Display};
-use std::mem;
 use std::path::Path;
+use std::{mem, str};
 
 use chrono::NaiveDate;
 use color_eyre::Result;
 use color_eyre::eyre::{ContextCompat, WrapErr};
 use nom::branch::alt;
-use nom::bytes::complete::{take_till, take_until};
-use nom::character::complete::{digit1, line_ending, multispace0, one_of, space0};
+use nom::bytes::complete::take_until;
+use nom::character::complete::{digit1, line_ending, multispace0, not_line_ending, one_of, space0};
 use nom::combinator::{eof, map, map_res};
 use nom::multi::{count, many_m_n, many_till};
 use nom::sequence::{delimited, preceded, terminated};
@@ -37,6 +37,7 @@ pub(crate) struct DayEntry {
     pub(crate) day_hour: String,
     pub(crate) mood: String,
     pub(crate) note: Vec<String>,
+    pub(crate) tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -52,12 +53,17 @@ fn extract_txt(pdf: &Path) -> Result<String> {
     Ok(txt.join(""))
 }
 
+fn read_line_untrimmed(input: &str) -> IResult<&str, &str> {
+    terminated(not_line_ending, line_ending).parse(input)
+}
+
+fn dbg(comment: &str, input: &str) {
+    let truncated = input.get(..input.len().min(100)).unwrap_or("");
+    println!("{}: {}", comment, truncated.replace(" ", "."));
+}
+
 fn read_line(input: &str) -> IResult<&str, &str> {
-    map(
-        terminated(take_till(|c| c == '\n'), line_ending),
-        |line: &str| line.trim(),
-    )
-    .parse(input)
+    map(read_line_untrimmed, |line: &str| line.trim()).parse(input)
 }
 
 fn parse_header(input: &str) -> IResult<&str, Vec<&str>> {
@@ -119,7 +125,7 @@ fn parse_stat_lines_with_corrected_order(input: &str) -> IResult<&str, Vec<StatL
             acc
         })
     })
-        .parse(input)
+    .parse(input)
 }
 
 /// differences between english and french:
@@ -194,19 +200,110 @@ fn parse_day_hour(input: &str) -> IResult<&str, &str> {
 fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)> {
     // The body is a series of lines, separated by line endings
     let body = alt((
-        parse_page_number.map(|_| None), // page numbers can be intertwined with the note
-        read_line.map(Some),
+        preceded(multispace0, parse_page_number).map(|_| None), // page numbers can be intertwined with the note
+        read_line_untrimmed.map(Some),
     ));
 
-    let date_or_eof = alt((parse_date.map(Some), eof.map(|_| None)));
+    let date_or_eof = alt((
+        preceded(multispace0, parse_date).map(Some),
+        preceded(multispace0, eof).map(|_| None),
+    ));
 
-    let body = many_till(body, date_or_eof).map(|(lines, date)| {
-        let no_empty_lines = lines.into_iter().flatten().filter(|l| !l.is_empty());
+    many_till(body, date_or_eof)
+        .map(|(lines, date)| {
+            let no_empty_lines = lines.into_iter().flatten().filter(|l| !l.is_empty());
 
-        (no_empty_lines.collect(), date)
-    });
+            (no_empty_lines.collect(), date)
+        })
+        .parse(input)
+}
 
-    preceded(multispace0, body).parse(input)
+/// Splits the tags line into a vector of tags. A tag line is a line that contains
+/// at least two "words", separated by 2+ spaces
+fn split_tags_line(tag_line: &str) -> Vec<&str> {
+    tag_line
+        .split("  ") // 2+ spaces
+        .map(|tag| tag.trim())
+        .filter(|tag| !tag.is_empty())
+        .collect()
+}
+
+/// Heuristic: a line is a line of tag if its indentation is greater than the rest of the body
+fn parse_tags_indent_heuristic<'b, 'a>(
+    body_lines: &'a [&'b str],
+) -> Option<(&'a [&'b str], Vec<&'b str>)> {
+    if body_lines.len() < 2 {
+        return None; // not enough lines to compare indentation
+    }
+
+    let indentations: Vec<usize> = body_lines
+        .iter()
+        .map(|line| line.chars().take_while(|c| c.is_whitespace()).count())
+        .collect();
+
+    let first_indentation = indentations[0];
+
+    let end_of_tags = {
+        let end = indentations
+            .iter()
+            .position(|&indent| indent < first_indentation);
+
+        if end.is_none() {
+            return None;
+        }
+
+        end.unwrap()
+    };
+
+    let (tags_lines, body_lines) = body_lines.split_at(end_of_tags);
+
+    let tags = tags_lines
+        .iter()
+        .flat_map(|line| split_tags_line(line))
+        .collect();
+
+    Some((body_lines, tags))
+}
+
+/// Heuristic: a line is a line of tag if it contains at least two "words", separated by 2+ spaces
+fn parse_tags_space_heuristic<'a, 'b>(
+    body_lines: &'a [&'b str],
+) -> Option<(&'a [&'b str], Vec<&'b str>)> {
+    let tags_per_line: Vec<Vec<&str>> = body_lines
+        .iter()
+        .map(|tag_line: &&str| split_tags_line(*tag_line)) // process each line as if it was a tag line
+        .take_while(|tags| tags.len() >= 2) // but only keep the ones with at least 2 tags
+        .collect();
+
+    if tags_per_line.is_empty() {
+        return None;
+    }
+
+    let note_lines = &body_lines[tags_per_line.len()..];
+    let tags = tags_per_line.into_iter().flatten().collect();
+
+    Some((note_lines, tags))
+}
+
+fn trim_all<'b>(lines: &[&'b str]) -> Vec<&'b str> {
+    lines.iter().map(|line| line.trim()).collect()
+}
+
+/// Extract the tags from the body, using the indentation heuristic first, then the space heuristic
+// TODO: move to analyze_pdf
+fn detect_tags<'a, 'b>(body_lines: &'a mut [&'b str]) -> (Vec<&'b str>, Vec<&'b str>) {
+    // We try to parse the tags using the indentation heuristic first, which is the most reliable
+    if let Some((note_lines, tags)) = parse_tags_indent_heuristic(&body_lines) {
+        return (trim_all(note_lines), tags);
+    }
+
+    // If that fails, we try the space heuristic, which is less reliable
+    if let Some((note_lines, tags)) = parse_tags_space_heuristic(&body_lines) {
+        return (trim_all(note_lines), tags);
+    }
+
+    // If we don't find any tags, we just return the body and an empty vector of tags
+    (trim_all(body_lines), vec![])
 }
 
 /// A day entry looks like this:
@@ -231,22 +328,23 @@ fn parse_note_body(input: &str) -> IResult<&str, (Vec<&str>, Option<NaiveDate>)>
 fn parse_day_entries(input: &str) -> IResult<&str, Vec<DayEntry>> {
     // So, we are in some kind of weird situation here.
     // We use the date as a separator, as it is the only thing that is guaranteed to be there.
-    // But the date is the first thing we parse, so we're gonna be off by one.
+    // But the date is the first thing we parse, so we're going to be off by one.
 
     let (input, mut prev_date) = map(parse_date, Some).parse(input)?;
 
     let parse_day = map(
         (parse_mood, parse_day_hour, parse_note_body),
-        |(mood, day_hour, (note, next_date))| {
+        |(mood, day_hour, (mut note, next_date))| {
             prev_date?; // if there's no date, we're at the end of the file
 
-            let note = note.into_iter().map(ToOwned::to_owned).collect();
+            let (note, tags) = detect_tags(&mut note);
 
             Some(DayEntry {
                 date: mem::replace(&mut prev_date, next_date).unwrap(),
                 mood: mood.to_owned(),
                 day_hour: day_hour.to_owned(),
-                note,
+                note: note.into_iter().map(|s| s.to_owned()).collect(),
+                tags: tags.into_iter().map(ToOwned::to_owned).collect(),
             })
         },
     );
@@ -294,13 +392,23 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::io::Read;
-
     use similar_asserts::assert_eq;
+    use std::io::Read;
 
     use super::*;
 
     const SMALL_PDF_PATH_ENGLISH: &str = "tests/data/official/english.pdf";
+
+    /// Make it easier to create a vector of owned strings
+    macro_rules! string_vec {
+        ($($x:expr),*) => {
+            vec![$(String::from($x)),*]
+        };
+        // allow trailing comma
+        ($($x:expr),*,) => {
+            string_vec!($($x),*)
+        };
+    }
 
     #[test]
     fn test_parse_small_pdf() -> Result<()> {
@@ -365,51 +473,51 @@ pub(crate) mod tests {
                     day_hour: "Tuesday 11 36 AM".to_owned(),
                     mood: "AWFUL".to_owned(),
                     note: vec![],
-                }, DayEntry {
+                    tags: vec![],
+                },
+                DayEntry {
                     date: string_to_date("January 24, 2023").unwrap(),
                     day_hour: "Tuesday 9 59 AM".to_owned(),
                     mood: "RAD".to_owned(),
-                    note: vec![
-                        "famille       rendez vous        exercice         sport       ménage".to_owned(),
-                        "Note title".to_owned(),
-                        "Note body".to_owned(),
-                    ],
+                    note: string_vec!["Note title", "Note body"],
+                    tags: string_vec!["famille", "rendez vous", "exercice", "sport", "ménage"],
                 },
                 DayEntry {
                     date: string_to_date("January 11, 2023").unwrap(),
                     day_hour: "Wednesday 10 20 PM".to_owned(),
                     mood: "MEH".to_owned(),
-                    note: vec![
-                        "manger sain".to_owned(),
-                        "Hey, here's a note with".to_owned(),
-                        "Linebreaks!".to_owned(),
-                        "Because I love breaking parsers".to_owned(),
+                    note: string_vec![
+                        "Hey, here's a note with",
+                        "Linebreaks!",
+                        "Because I love breaking parsers",
                     ],
+                    tags: string_vec!["manger sain"],
                 },
                 DayEntry {
                     date: string_to_date("January 4, 2023").unwrap(),
                     day_hour: "Wednesday 8 00 PM".to_owned(),
                     mood: "AWFUL".to_owned(),
-                    note: vec![
-                        "manger sain        films       ménage          shopping".to_owned(),
-                    ],
+                    note: vec![],
+                    tags: string_vec!["manger sain", "films", "ménage", "shopping"],
                 },
                 DayEntry {
                     date: string_to_date("May 16, 2015").unwrap(),
                     day_hour: "Saturday 8 00 PM".to_string(),
-                    mood: "NULL".to_string(),
-                    note: vec!["No tag".to_owned(),
-                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
-                               "its body is really long".to_owned(),
-                               "This is an old note. It has no title, but its body is really long".to_owned(),
-                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
-                               "its body is really long".to_owned(),
-                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
-                               "its body is really long".to_owned(),
-                               "This is an old note. It has no title, but its body is really long".to_owned(),
-                               "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but".to_owned(),
-                               "its body is really long".to_owned(),
+                    mood: "NULL".to_owned(),
+                    note: string_vec![
+                        "No tag",
+                        "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but",
+                        "its body is really long",
+                        "This is an old note. It has no title, but its body is really long",
+                        "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but",
+                        "its body is really long",
+                        "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but",
+                        "its body is really long",
+                        "This is an old note. It has no title, but its body is really long",
+                        "This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but",
+                        "its body is really long",
                     ],
+                    tags: vec![],
                 },
             ],
         };
@@ -520,400 +628,420 @@ pub(crate) mod tests {
                 day_hour: "Tuesday 11 00 PM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 0 LKH".to_owned(), "Note 0 LHF".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("August 2, 2022").unwrap(),
                 day_hour: "Tuesday 6 00 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 1 OAK".to_owned(), "Note 1 QJO".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("August 1, 2022").unwrap(),
                 day_hour: "Monday 8 45 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 2 FFU".to_owned(), "Note 2 JBQ".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("August 1, 2022").unwrap(),
                 day_hour: "Monday 10 30 AM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 3 MKL".to_owned(), "Note 3 VPH".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 31, 2022").unwrap(),
                 day_hour: "Sunday 4 00 PM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 4 BTD".to_owned(), "Note 4 UDK".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 30, 2022").unwrap(),
                 day_hour: "Saturday 9 00 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 5 VXG".to_owned(), "Note 5 AOT".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 29, 2022").unwrap(),
                 day_hour: "Friday 8 00 AM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 6 JIG".to_owned(), "Note 6 GVX".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 25, 2022").unwrap(),
                 day_hour: "Monday 10 01 AM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 7 IFI".to_owned(), "Note 7 ABH".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 23, 2022").unwrap(),
                 day_hour: "Saturday 10 58 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 8 AGV".to_owned(), "Note 8 UGW".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 23, 2022").unwrap(),
                 day_hour: "Saturday 9 01 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 9 VGL".to_owned(), "Note 9 XMI".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 23, 2022").unwrap(),
                 day_hour: "Saturday 7 44 AM".to_owned(),
                 mood: "MEH".to_owned(),
                 note: vec!["Note title 10 YIG".to_owned(), "Note 10 ADT".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 23, 2022").unwrap(),
                 day_hour: "Saturday 7 26 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 11 FSE".to_owned(), "Note 11 GUP".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("July 1, 2022").unwrap(),
                 day_hour: "Friday 9 19 PM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 12 LGC".to_owned(), "Note 12 XKN".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 30, 2022").unwrap(),
                 day_hour: "Thursday 6 39 AM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 13 AKM".to_owned(), "Note 13 YJP".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 26, 2022").unwrap(),
                 day_hour: "Sunday 5 00 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 14 CGY".to_owned(), "Note 14 XHV".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 23, 2022").unwrap(),
                 day_hour: "Thursday 12 52 PM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 15 IQK".to_owned(), "Note 15 JJD".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 23, 2022").unwrap(),
                 day_hour: "Thursday 12 05 PM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 16 RDS".to_owned(), "Note 16 TYC".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 23, 2022").unwrap(),
                 day_hour: "Thursday 8 04 AM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 17 MCA".to_owned(), "Note 17 FGP".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 22, 2022").unwrap(),
                 day_hour: "Wednesday 6 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 18 BFC".to_owned(), "Note 18 VLP".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 20, 2022").unwrap(),
                 day_hour: "Monday 9 00 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 19 OVK".to_owned(), "Note 19 BIB".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 19, 2022").unwrap(),
                 day_hour: "Sunday 9 29 PM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 20 IJG".to_owned(), "Note 20 JWW".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 18, 2022").unwrap(),
                 day_hour: "Saturday 9 29 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 21 YYM".to_owned(), "Note 21 LGX".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 13, 2022").unwrap(),
                 day_hour: "Monday 9 25 PM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 22 DDS".to_owned(), "Note 22 PDV".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 11, 2022").unwrap(),
                 day_hour: "Saturday 10 00 AM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 23 HWK".to_owned(), "Note 23 IXE".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 9, 2022").unwrap(),
                 day_hour: "Thursday 9 14 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 24 EXK".to_owned(), "Note 24 NHO".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 9, 2022").unwrap(),
                 day_hour: "Thursday 10 21 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 25 HVQ".to_owned(), "Note 25 KLA".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 6, 2022").unwrap(),
                 day_hour: "Monday 8 50 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 26 ONQ".to_owned(), "Note 26 DCC".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 4, 2022").unwrap(),
                 day_hour: "Saturday 9 50 PM".to_owned(),
                 mood: "MOOD 0 KWY".to_owned(),
                 note: vec!["Note title 27 PBF".to_owned(), "Note 27 BGL".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("June 3, 2022").unwrap(),
                 day_hour: "Friday 10 24 AM".to_owned(),
                 mood: "MOOD 0 KWY".to_owned(),
                 note: vec!["Note title 28 FGA".to_owned(), "Note 28 AEQ".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 29, 2022").unwrap(),
                 day_hour: "Sunday 8 42 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 29 AIU".to_owned(), "Note 29 GVL".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 28, 2022").unwrap(),
                 day_hour: "Saturday 6 00 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 30 RRM".to_owned(), "Note 30 QVS".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 27, 2022").unwrap(),
                 day_hour: "Friday 8 42 PM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 31 LPS".to_owned(), "Note 31 HKU".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 26, 2022").unwrap(),
                 day_hour: "Thursday 8 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 32 MGE".to_owned(), "Note 32 PRG".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 25, 2022").unwrap(),
                 day_hour: "Wednesday 4 55 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 33 AMR".to_owned(), "Note 33 MYX".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 24, 2022").unwrap(),
                 day_hour: "Tuesday 8 44 PM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
                 note: vec!["Note title 34 YRH".to_owned(), "Note 34 SXS".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 22, 2022").unwrap(),
                 day_hour: "Sunday 8 53 PM".to_owned(),
                 mood: "RAD".to_owned(),
-                note: vec![
-                    "Tag 2 NWR    Tag 4 HBK   Tag 5 IGN     Tag 10 OKU     Tag 23 CLN".to_owned(),
-                    "Note title 35 XLA".to_owned(),
-                    "Note 35 AHM".to_owned(),
+                note: vec!["Note title 35 XLA".to_owned(), "Note 35 AHM".to_owned()],
+                tags: string_vec![
+                    "Tag 2 NWR",
+                    "Tag 4 HBK",
+                    "Tag 5 IGN",
+                    "Tag 10 OKU",
+                    "Tag 23 CLN"
                 ],
             },
             DayEntry {
                 date: string_to_date("May 20, 2022").unwrap(),
                 day_hour: "Friday 8 15 PM".to_owned(),
                 mood: "MOOD 0 KWY".to_owned(),
-                note: vec![
-                    "Tag 5 IGN    Tag 6 AUG   Tag 21 NUD     Tag 23 CLN".to_owned(),
-                    "Note title 36 GYK".to_owned(),
-                    "Note 36 AFX".to_owned(),
-                ],
+                note: vec!["Note title 36 GYK".to_owned(), "Note 36 AFX".to_owned()],
+                tags: string_vec!["Tag 5 IGN", "Tag 6 AUG", "Tag 21 NUD", "Tag 23 CLN",],
             },
             DayEntry {
                 date: string_to_date("May 20, 2022").unwrap(),
                 day_hour: "Friday 5 11 AM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 37 SHL".to_owned(), "Note 37 YKU".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 15, 2022").unwrap(),
                 day_hour: "Sunday 9 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 5 IGN   Tag 6 AUG     Tag 11 XRB    Tag 21 NUD".to_owned(),
-                    "Tag 23 CLN".to_owned(),
-                    "Note title 38 NBR".to_owned(),
-                    "Note 38 HPJ".to_owned(),
+                note: vec!["Note title 38 NBR".to_owned(), "Note 38 HPJ".to_owned()],
+                tags: string_vec![
+                    "Tag 4 HBK",
+                    "Tag 5 IGN",
+                    "Tag 6 AUG",
+                    "Tag 11 XRB",
+                    "Tag 21 NUD",
+                    "Tag 23 CLN",
                 ],
             },
             DayEntry {
                 date: string_to_date("May 14, 2022").unwrap(),
                 day_hour: "Saturday 1 50 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 8 WNA    Tag 12 LRD    Tag 33 IQP".to_owned(),
-                    "Note title 39 UKI".to_owned(),
-                    "Note 39 KFO".to_owned(),
-                ],
+                note: vec!["Note title 39 UKI".to_owned(), "Note 39 KFO".to_owned()],
+                tags: string_vec!["Tag 4 HBK", "Tag 8 WNA", "Tag 12 LRD", "Tag 33 IQP",],
             },
             DayEntry {
                 date: string_to_date("May 13, 2022").unwrap(),
                 day_hour: "Friday 6 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 0 AHY    Tag 5 IGN    Tag 6 AUG     Tag 11 XRB".to_owned(),
-                    "Note title 40 TJJ".to_owned(),
-                    "Note 40 DBV".to_owned(),
-                ],
+                note: vec!["Note title 40 TJJ".to_owned(), "Note 40 DBV".to_owned()],
+                tags: string_vec!["Tag 0 AHY", "Tag 5 IGN", "Tag 6 AUG", "Tag 11 XRB",],
             },
             DayEntry {
                 date: string_to_date("May 12, 2022").unwrap(),
                 day_hour: "Thursday 7 04 AM".to_owned(),
                 mood: "BAD".to_owned(),
                 note: vec!["Note title 41 EBK".to_owned(), "Note 41 HVI".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 11, 2022").unwrap(),
                 day_hour: "Wednesday 11 17 AM".to_owned(),
                 mood: "GOOD".to_owned(),
                 note: vec!["Note title 42 OLY".to_owned(), "Note 42 FQU".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("May 11, 2022").unwrap(),
                 day_hour: "Wednesday 9 39 AM".to_owned(),
                 mood: "BAD".to_owned(),
-                note: vec![
-                    "Tag 5 IGN    Tag 6 AUG    Tag 10 OKU".to_owned(),
-                    "Note title 43 VXJ".to_owned(),
-                    "Note 43 MBW".to_owned(),
-                ],
+                note: vec!["Note title 43 VXJ".to_owned(), "Note 43 MBW".to_owned()],
+                tags: string_vec!["Tag 5 IGN", "Tag 6 AUG", "Tag 10 OKU",],
             },
             DayEntry {
                 date: string_to_date("May 10, 2022").unwrap(),
                 day_hour: "Tuesday 9 57 AM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
-                note: vec![
-                    "Tag 5 IGN    Tag 9 MAS    Tag 10 OKU".to_owned(),
-                    "Note title 44 DPR".to_owned(),
-                    "Note 44 BIV".to_owned(),
-                ],
+                note: vec!["Note title 44 DPR".to_owned(), "Note 44 BIV".to_owned()],
+                tags: string_vec!["Tag 5 IGN", "Tag 9 MAS", "Tag 10 OKU"],
             },
             DayEntry {
                 date: string_to_date("May 9, 2022").unwrap(),
                 day_hour: "Monday 8 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 5 IGN    Tag 6 AUG    Tag 12 LRD    Tag 21 NUD".to_owned(),
-                    "Note title 45 LWT".to_owned(),
-                    "Note 45 OUF".to_owned(),
-                ],
+                note: vec!["Note title 45 LWT".to_owned(), "Note 45 OUF".to_owned()],
+                tags: string_vec!["Tag 5 IGN", "Tag 6 AUG", "Tag 12 LRD", "Tag 21 NUD"],
             },
             DayEntry {
                 date: string_to_date("May 8, 2022").unwrap(),
                 day_hour: "Sunday 8 27 PM".to_owned(),
                 mood: "RAD".to_owned(),
-                note: vec![
-                    "Tag 2 NWR    Tag 4 HBK    Tag 5 IGN     Tag 6 AUG    Tag 10 OKU".to_owned(),
-                    "Tag 14 NEU   Tag 21 NUD    Tag 22 ITV".to_owned(),
-                    "Note title 46 EAJ".to_owned(),
-                    "Note 46 FWU".to_owned(),
+                note: vec!["Note title 46 EAJ".to_owned(), "Note 46 FWU".to_owned()],
+                tags: string_vec![
+                    "Tag 2 NWR",
+                    "Tag 4 HBK",
+                    "Tag 5 IGN",
+                    "Tag 6 AUG",
+                    "Tag 10 OKU",
+                    "Tag 14 NEU",
+                    "Tag 21 NUD",
+                    "Tag 22 ITV",
                 ],
             },
             DayEntry {
                 date: string_to_date("May 7, 2022").unwrap(),
                 day_hour: "Saturday 7 00 PM".to_owned(),
                 mood: "RAD".to_owned(),
-                note: vec![
-                    "Tag 2 NWR    Tag 4 HBK    Tag 5 IGN     Tag 10 OKU".to_owned(),
-                    "Note title 47 NYG".to_owned(),
-                    "Note 47 AND".to_owned(),
-                ],
+                note: vec!["Note title 47 NYG".to_owned(), "Note 47 AND".to_owned()],
+                tags: string_vec!["Tag 2 NWR", "Tag 4 HBK", "Tag 5 IGN", "Tag 10 OKU"],
             },
             DayEntry {
                 date: string_to_date("May 6, 2022").unwrap(),
                 day_hour: "Friday 5 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 5 IGN    Tag 8 WNA     Tag 11 XRB".to_owned(),
-                    "Note title 48 EEX".to_owned(),
-                    "Note 48 NNJ".to_owned(),
-                ],
+                note: vec!["Note title 48 EEX".to_owned(), "Note 48 NNJ".to_owned()],
+                tags: string_vec!["Tag 5 IGN", "Tag 8 WNA", "Tag 11 XRB"],
             },
             DayEntry {
                 date: string_to_date("May 5, 2022").unwrap(),
                 day_hour: "Thursday 8 37 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 5 IGN     Tag 11 XRB   Tag 21 NUD   Tag 23 CLN".to_owned(),
-                    "Note title 49 MFY".to_owned(),
-                    "Note 49 AFH".to_owned(),
+                note: vec!["Note title 49 MFY".to_owned(), "Note 49 AFH".to_owned()],
+                tags: string_vec![
+                    "Tag 4 HBK",
+                    "Tag 5 IGN",
+                    "Tag 11 XRB",
+                    "Tag 21 NUD",
+                    "Tag 23 CLN",
                 ],
             },
             DayEntry {
                 date: string_to_date("May 4, 2022").unwrap(),
                 day_hour: "Wednesday 8 45 PM".to_owned(),
                 mood: "RAD".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 5 IGN     Tag 21 NUD   Tag 25 CGQ".to_owned(),
-                    "Note title 50 THD".to_owned(),
-                    "Note 50 USB".to_owned(),
-                ],
+                note: vec!["Note title 50 THD".to_owned(), "Note 50 USB".to_owned()],
+                tags: string_vec!["Tag 4 HBK", "Tag 5 IGN", "Tag 21 NUD", "Tag 25 CGQ"],
             },
             DayEntry {
                 date: string_to_date("May 3, 2022").unwrap(),
                 day_hour: "Tuesday 6 31 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 5 IGN     Tag 11 XRB   Tag 21 NUD".to_owned(),
-                    "Note title 51 OXM".to_owned(),
-                    "Note 51 DMN".to_owned(),
-                ],
+                note: vec!["Note title 51 OXM".to_owned(), "Note 51 DMN".to_owned()],
+                tags: string_vec!["Tag 4 HBK", "Tag 5 IGN", "Tag 11 XRB", "Tag 21 NUD"],
             },
             DayEntry {
                 date: string_to_date("May 2, 2022").unwrap(),
                 day_hour: "Monday 8 00 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 21 NUD".to_owned(),
-                    "Note title 52 MCT".to_owned(),
-                    "Note 52 VUF".to_owned(),
-                ],
+                note: vec!["Note title 52 MCT".to_owned(), "Note 52 VUF".to_owned()],
+                tags: string_vec!["Tag 21 NUD"],
             },
             DayEntry {
                 date: string_to_date("May 2, 2022").unwrap(),
                 day_hour: "Monday 5 12 PM".to_owned(),
                 mood: "MOOD 2 VUP".to_owned(),
-                note: vec![
-                    "Tag 4 HBK    Tag 12 LRD".to_owned(),
-                    "Note title 53 JGL".to_owned(),
-                    "Note 53 NTR".to_owned(),
-                ],
+                note: vec!["Note title 53 JGL".to_owned(), "Note 53 NTR".to_owned()],
+                tags: string_vec!["Tag 4 HBK", "Tag 12 LRD"],
             },
             DayEntry {
                 date: string_to_date("May 1, 2022").unwrap(),
                 day_hour: "Sunday 3 19 PM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 2 NWR    Tag 4 HBK      Tag 5 IGN   Tag 11 XRB   Tag 14 NEU".to_owned(),
-                    "Tag 16 QUG    Tag 23 CLN".to_owned(),
-                    "Note title 54 JRN".to_owned(),
-                    "Note 54 HOI".to_owned(),
+                note: vec!["Note title 54 JRN".to_owned(), "Note 54 HOI".to_owned()],
+                tags: string_vec![
+                    "Tag 2 NWR",
+                    "Tag 4 HBK",
+                    "Tag 5 IGN",
+                    "Tag 11 XRB",
+                    "Tag 14 NEU",
+                    "Tag 16 QUG",
+                    "Tag 23 CLN"
                 ],
             },
             DayEntry {
@@ -921,70 +1049,63 @@ pub(crate) mod tests {
                 day_hour: "Saturday 1 30 PM".to_owned(),
                 mood: "RAD".to_owned(),
                 note: vec!["Note title 55 NWO".to_owned(), "Note 55 JGI".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("April 30, 2022").unwrap(),
                 day_hour: "Saturday 6 09 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
-                note: vec![
-                    "Tag 0 AHY    Tag 10 OKU   Tag 21 NUD".to_owned(),
-                    "Note title 56 WRY".to_owned(),
-                    "Note 56 LOF".to_owned(),
-                ],
+                note: vec!["Note title 56 WRY".to_owned(), "Note 56 LOF".to_owned()],
+                tags: string_vec!["Tag 0 AHY", "Tag 10 OKU", "Tag 21 NUD"],
             },
             DayEntry {
                 date: string_to_date("April 29, 2022").unwrap(),
                 day_hour: "Friday 5 23 AM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 11 XRB".to_owned(),
-                    "Note title 57 HHQ".to_owned(),
-                    "Note 57 MHD".to_owned(),
-                ],
+                note: vec!["Note title 57 HHQ".to_owned(), "Note 57 MHD".to_owned()],
+                tags: string_vec!["Tag 11 XRB"],
             },
             DayEntry {
                 date: string_to_date("April 28, 2022").unwrap(),
                 day_hour: "Thursday 5 01 PM".to_owned(),
                 mood: "MOOD 0 KWY".to_owned(),
                 note: vec!["Note title 58 AKY".to_owned(), "Note 58 CHG".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("April 28, 2022").unwrap(),
                 day_hour: "Thursday 8 24 AM".to_owned(),
                 mood: "MOOD 0 KWY".to_owned(),
-                note: vec![
-                    "Tag 24 KVI".to_owned(),
-                    "Note title 59 XNI".to_owned(),
-                    "Note 59 XHR".to_owned(),
-                ],
+                note: vec!["Note title 59 XNI".to_owned(), "Note 59 XHR".to_owned()],
+                tags: string_vec!["Tag 24 KVI"],
             },
             DayEntry {
                 date: string_to_date("April 28, 2022").unwrap(),
                 day_hour: "Thursday 7 11 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 60 TEO".to_owned(), "Note 60 YQQ".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("April 28, 2022").unwrap(),
                 day_hour: "Thursday 7 02 AM".to_owned(),
                 mood: "GOOD".to_owned(),
-                note: vec![
-                    "Tag 11 XRB".to_owned(),
-                    "Note title 61 GTQ".to_owned(),
-                    "Note 61 NJC".to_owned(),
-                ],
+                note: vec!["Note title 61 GTQ".to_owned(), "Note 61 NJC".to_owned()],
+                tags: string_vec!["Tag 11 XRB"],
             },
             DayEntry {
                 date: string_to_date("April 27, 2022").unwrap(),
                 day_hour: "Wednesday 1 00 PM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 62 OQP".to_owned(), "Note 62 BTP".to_owned()],
+                tags: vec![],
             },
             DayEntry {
                 date: string_to_date("April 27, 2022").unwrap(),
                 day_hour: "Wednesday 5 30 AM".to_owned(),
                 mood: "MOOD 1 QBL".to_owned(),
                 note: vec!["Note title 63 FSU".to_owned(), "Note 63 DWN".to_owned()],
+                tags: vec![],
             },
         ];
 

@@ -49,7 +49,7 @@ mod tests {
             3,
             CustomMood {
                 id: 6,
-                custom_name: "NULL".to_owned(),
+                custom_name: "null".to_owned(),
                 mood_group_id: 3,
                 mood_group_order: 1,
                 icon_id: 1,
@@ -164,7 +164,7 @@ mod tests {
                     mood: 1,
                     note: "Note title\nNote body".to_owned(), // we lose separation between title and body
                     note_title: String::new(),
-                    tags: vec![5, 2, 6, 1, 8],
+                    tags: vec![2, 6, 1, 8, 5],
                     assets: vec![],
                 },
                 DayEntry {
@@ -194,7 +194,7 @@ mod tests {
                     mood: 5,
                     note: String::new(),
                     note_title: String::new(),
-                    tags: vec![4, 5, 3, 7],
+                    tags: vec![4, 3, 5, 7],
                     assets: vec![],
                 },
                 DayEntry {

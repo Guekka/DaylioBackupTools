@@ -1,6 +1,6 @@
 //! This module interprets the parsed PDF data into a Daylio struct.
 
-use crate::parse_pdf::{DayEntry, ParsedPdf, StatLine};
+use crate::parse_pdf::{DayEntry, ParsedPdf};
 use crate::{Daylio, NUMBER_OF_PREDEFINED_MOODS, daylio, merge};
 use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
 use color_eyre::eyre::WrapErr;
@@ -85,32 +85,58 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
 }
 
 /// Extracts tags from the note, and returns the note with the tags removed.
-fn extract_tags(entry: &DayEntry, stats: &Vec<StatLine>) -> (String, Vec<String>) {
+/// Most of the work should already be done by the parser,
+/// but in some cases it might not be able to detect the tags.
+/// The logic here is to detect tags by checking if the line contains only known tags.
+fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
+    let mut tags_by_decreasing_length = all_tags.to_owned();
+    // sort the tags by length, so we can remove the longest ones first in case of overlap
+    tags_by_decreasing_length.sort_unstable_by(|a, b| b.name.len().cmp(&a.name.len()));
+
     let mut entry_tags = Vec::new();
 
     let mut last_tag_line = None;
     for (i, line) in entry.note.iter().enumerate() {
-        for tag in stats {
+        let mut line = line.to_owned();
+        let mut line_tags = Vec::new();
+        // detect tags in line
+        for tag in &tags_by_decreasing_length {
             // tag comparison is case-sensitive
             if line.contains(&tag.name) {
-                entry_tags.push(tag.name.clone());
-                last_tag_line = Some(i);
+                println!("Found tag {} in line {}", tag.name, line);
+                line_tags.push(tag.name.clone());
+                // removing the tag is not very efficient, but probably not a big deal
+                line = line.replace(&tag.name, "").to_owned();
             }
         }
-        if last_tag_line != Some(i) {
+        // make sure we only have tags in this line
+        if line.trim().is_empty() {
+            // this line only contained tags
+            entry_tags.extend(line_tags);
+            last_tag_line = Some(i);
+        } else {
+            if !line_tags.is_empty() {
+                println!(
+                    "Discarding found tags {} in line {}",
+                    line_tags.join(", "),
+                    line
+                );
+            }
+            // we have reached the end of the tags
             break;
         }
     }
 
-    let note = if let Some(last_tag_line) = last_tag_line {
-        let mut note = entry.note.clone();
-        note.drain(..=last_tag_line);
-        note
-    } else {
-        entry.note.clone()
-    };
+    // remove the tags from the note
+    let mut note_lines = entry.note.to_owned();
+    if let Some(last_tag_line) = last_tag_line {
+        note_lines.drain(..=last_tag_line);
+    }
 
-    (note.join("\n"), entry_tags)
+    // add tags detected by the parser
+    entry_tags.extend(entry.tags.clone());
+
+    (note_lines.join("\n"), entry_tags)
 }
 
 fn predefined_mood_idx(custom_name: &str) -> Option<i64> {
@@ -136,52 +162,51 @@ fn update_mood_category(moods: &mut [Mood]) {
     }
 }
 
-fn list_tags_and_moods(
-    parsed: &ParsedPdf,
-    processed_entries: &[(String, Vec<String>)],
-) -> (Vec<Tag>, Vec<Mood>) {
-    let mut moods: Vec<Mood> = Vec::new();
-    let mut tags: Vec<Tag> = Vec::new();
+fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
+    let max_mood_index: usize = parsed
+        .day_entries
+        .iter()
+        .map(|entry| entry.mood.clone())
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|mood| {
+            parsed
+                .stats
+                .iter()
+                .position(|stat| stat.name.to_lowercase() == mood.to_lowercase())
+                .expect("Entry mood not found in stats")
+        })
+        .max()
+        .expect("Failed to find max mood index");
 
-    for (processed_entry, entry) in processed_entries.iter().zip(parsed.day_entries.iter()) {
-        if !moods.iter().any(|m| m.name == entry.mood) {
-            moods.push(Mood {
-                id: moods.len() as i64 + NUMBER_OF_PREDEFINED_MOODS,
-                name: entry.mood.clone(),
-                group: 0,
-                predefined: false,
-            });
-        }
+    // moods and tags are stored in the same vector, so we need to separate them
+    // moods appear first, then tags
+    let mut owned_stats = parsed.stats.to_owned();
+    let (moods, tags) = owned_stats.split_at_mut(max_mood_index + 1);
 
-        for tag in &processed_entry.1 {
-            if !tags.iter().any(|t| t.name == *tag) {
-                tags.push(Tag {
-                    id: tags.len() as i64,
-                    name: tag.clone(),
-                });
-            }
-        }
-    }
+    let mut moods = moods
+        .iter()
+        .enumerate()
+        .map(|(i, stat)| Mood {
+            id: i as i64 + NUMBER_OF_PREDEFINED_MOODS,
+            name: stat.name.clone(),
+            group: 0,
+            predefined: false,
+        })
+        .collect::<Vec<_>>();
 
-    // sort moods according to the order they appear in the PDF
-    let mut moods: Vec<Mood> = moods.into_iter().collect();
-    moods.sort_by_key(|mood| {
-        parsed
-            .stats
-            .iter()
-            .position(|stat| stat.name.to_uppercase() == mood.name.to_uppercase())
-    });
     update_mood_category(&mut moods);
 
-    // trim whitespace
-    for tag in &mut tags {
-        tag.name = tag.name.trim().to_owned();
-    }
-    for mood in &mut moods {
-        mood.name = mood.name.trim().to_owned();
-    }
+    let tags = tags
+        .iter()
+        .enumerate()
+        .map(|(i, stat)| Tag {
+            id: i as i64,
+            name: stat.name.clone(),
+        })
+        .collect::<Vec<_>>();
 
-    (tags.into_iter().collect(), moods)
+    (tags, moods)
 }
 
 /// Simplifies the note by removing unnecessary newlines and spaces. In particular:
@@ -285,13 +310,13 @@ fn simplify_note_heuristically(mut text: String) -> String {
 impl TryFrom<ParsedPdf> for ProcessedPdf {
     type Error = eyre::Error;
     fn try_from(parsed: ParsedPdf) -> std::result::Result<Self, Self::Error> {
+        let (tags, moods) = split_tags_and_moods(&parsed);
+
         let processed_entries = parsed
             .day_entries
             .iter()
-            .map(|entry| extract_tags(entry, &parsed.stats))
+            .map(|entry| extract_tags(entry, &tags))
             .collect::<Vec<_>>();
-
-        let (tags, moods) = list_tags_and_moods(&parsed, &processed_entries);
 
         let day_entries = parsed
             .day_entries
@@ -302,10 +327,26 @@ impl TryFrom<ParsedPdf> for ProcessedPdf {
                 let (note, entry_tags) = &processed_entries[entry_idx];
                 let note = simplify_note_heuristically(note.clone());
 
-                let entry_mood = moods.iter().find(|x| x.name == entry.mood).unwrap().id;
+                let entry_mood = moods
+                    .iter()
+                    .find(|x| x.name.to_lowercase() == entry.mood.to_lowercase())
+                    .expect("Entry mood not found in moods")
+                    .id;
+
                 let entry_tags = entry_tags
                     .iter()
-                    .map(|x| tags.iter().find(|y| y.name == *x).unwrap().id)
+                    .map(|x| {
+                        tags.iter()
+                            .find(|y| y.name == *x)
+                            .expect(
+                                format!(
+                                    "Tag {} not found in tags. Entry: {:?}\nEntry tags: {:?}",
+                                    x, entry, entry_tags
+                                )
+                                .as_str(),
+                            )
+                            .id
+                    })
                     .collect();
 
                 ProcessedDayEntry {
@@ -418,6 +459,7 @@ impl TryFrom<ProcessedPdf> for Daylio {
 #[cfg(test)]
 mod tests {
     use chrono::{Datelike, NaiveDate, Timelike};
+    use similar_asserts::assert_eq;
 
     use super::*;
 
@@ -455,6 +497,7 @@ Preserve the empty line, but not the final one
             day_hour: "Monday 8 45 PM".to_owned(),
             mood: String::new(),
             note: vec![],
+            tags: vec![],
         };
         let date = parse_date(&entry).unwrap();
         assert_eq!(date.month(), 8);
@@ -487,6 +530,7 @@ Preserve the empty line, but not the final one
                 "not a tag".to_owned(),
                 "still not a tag".to_owned(),
             ],
+            tags: vec![],
         };
 
         let stats = vec![
@@ -505,9 +549,9 @@ Preserve the empty line, but not the final one
         ]
         .join("\n");
         let expected_tags = vec![
-            "some tag".to_owned(),
-            "another tag".to_owned(),
             "yet another tag".to_owned(),
+            "another tag".to_owned(),
+            "some tag".to_owned(),
             "A tag, on another line".to_owned(),
         ];
 
@@ -524,12 +568,14 @@ Preserve the empty line, but not the final one
                     day_hour: "Monday 8 45 PM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note".to_owned()],
+                    tags: vec![],
                 },
                 DayEntry {
                     date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
                     day_hour: "Tuesday 8 45 AM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note²".to_owned()],
+                    tags: vec![],
                 },
                 DayEntry {
                     date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
@@ -540,6 +586,7 @@ Preserve the empty line, but not the final one
                         "Note title".to_owned(),
                         "Note body".to_owned(),
                     ],
+                    tags: vec![],
                 },
             ],
             stats: vec![
@@ -564,13 +611,12 @@ Preserve the empty line, but not the final one
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
                     mood: 1,
                     tags: vec![],
-                    // We los
                     note: "This is a note²".to_owned(),
                 },
                 ProcessedDayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
                     mood: 2,
-                    tags: vec![0, 1, 2],
+                    tags: vec![2, 1, 0],
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
@@ -600,6 +646,10 @@ Preserve the empty line, but not the final one
                 Tag {
                     id: 2,
                     name: "yet another tag".to_owned(),
+                },
+                Tag {
+                    id: 3,
+                    name: "Tag that won't be matched".to_owned(),
                 },
             ],
         };
