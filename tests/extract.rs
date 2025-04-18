@@ -48,11 +48,11 @@ mod tests {
         expected_moods.insert(
             3,
             CustomMood {
-                id: 6,
+                id: 60000,
                 custom_name: "null".to_owned(),
                 mood_group_id: 3,
                 mood_group_order: 1,
-                icon_id: 1,
+                icon_id: 3,
                 predefined_name_id: -1,
                 state: 0,
                 created_at: 0,
@@ -164,7 +164,7 @@ mod tests {
                     mood: 1,
                     note: "Note title\nNote body".to_owned(), // we lose separation between title and body
                     note_title: String::new(),
-                    tags: vec![2, 6, 1, 8, 5],
+                    tags: vec![1, 2, 5, 6, 8],
                     assets: vec![],
                 },
                 DayEntry {
@@ -194,7 +194,7 @@ mod tests {
                     mood: 5,
                     note: String::new(),
                     note_title: String::new(),
-                    tags: vec![4, 3, 5, 7],
+                    tags: vec![3, 4, 5, 7],
                     assets: vec![],
                 },
                 DayEntry {

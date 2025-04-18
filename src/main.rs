@@ -59,9 +59,22 @@ fn main() -> Result<()> {
 
             for path in inputs.iter().skip(1) {
                 let other = load_daylio(path)?;
+                println!(
+                    "Merging {:#?} into {:#?}\nMergee has {} entries, reference has {} entries",
+                    path,
+                    inputs[0],
+                    other.day_entries.len(),
+                    reference.day_entries.len()
+                );
                 reference = merge(reference, other)?;
+                println!(
+                    "Merged into {:#?} with {} entries",
+                    inputs[0],
+                    reference.day_entries.len()
+                );
             }
             store_daylio_backup(&reference, &output)?;
+            println!("Wrote merged file to {output:#?}");
         }
         Commands::Anonymize { input, output } => {
             let mut daylio = load_daylio(&input)?;

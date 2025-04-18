@@ -1,5 +1,5 @@
+use crate::DayEntry;
 use crate::daylio::{CustomMood, Daylio, Tag};
-use crate::{DayEntry, NUMBER_OF_PREDEFINED_MOODS};
 use color_eyre::eyre::Context;
 
 #[derive(Clone, Copy)]
@@ -38,136 +38,87 @@ impl Daylio {
         mood.id = new_id;
     }
 
-    fn change_tag_id(day_entries: &mut [DayEntry], tag: &mut Tag, new_id: i64) {
-        for entry in day_entries {
-            for entry_tag in &mut entry.tags {
-                if *entry_tag == tag.id {
-                    *entry_tag = new_id;
-                    break;
-                }
-            }
-        }
-        tag.id = new_id;
+    /// Aggressive simplification of the note: only keep alphanumeric characters
+    fn simplify_note_for_comparing(entry: &DayEntry) -> String {
+        (entry.note_title.clone() + &entry.note)
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .map(|c| c.to_ascii_lowercase())
+            .collect()
     }
 
-    fn make_ids_distinct(&mut self, id_gen: &mut IdGenerator) {
-        for mood in &mut self.custom_moods {
-            Daylio::change_mood_id(&mut self.day_entries, mood, id_gen.next());
-        }
+    fn add_entry(&mut self, mut entry: DayEntry, other: &Daylio, idx: usize) {
+        entry.id = self.day_entries.len() as i64 + 1;
 
-        for tag in &mut self.tags {
-            Daylio::change_tag_id(&mut self.day_entries, tag, id_gen.next());
-        }
-    }
+        let is_duplicate_mood = |mood1: &CustomMood, mood2: &CustomMood| {
+            let same_predefined = mood1.predefined_name_id == mood2.predefined_name_id
+                && mood1.predefined_name_id != -1;
 
-    pub fn add_unique_moods(&mut self, mergee: &mut Daylio) {
-        let is_mergeable = |mood1: &CustomMood, mood2: &CustomMood| {
-            // Either both are the same predefined mood, or both have the same name
-            // This could lead to false positives, maybe the algorithm should be improved
-            (mood1.predefined_name_id == mood2.predefined_name_id && mood1.predefined_name_id != -1)
-                || mood1.custom_name.to_uppercase() == mood2.custom_name.to_uppercase()
+            let same_custom = mood1.custom_name.to_uppercase() == mood2.custom_name.to_uppercase()
+                && !mood1.custom_name.is_empty();
+
+            same_custom || same_predefined
         };
 
-        let sort_by = |lhs: &CustomMood, rhs: &CustomMood| {
-            lhs.custom_name
-                .to_uppercase()
-                .cmp(&rhs.custom_name.to_uppercase())
-                .then(lhs.predefined_name_id.cmp(&rhs.predefined_name_id))
-        };
+        let added_mood = &mut other
+            .custom_moods
+            .iter()
+            .find(|mood| entry.mood == mood.id)
+            .expect("Added mood not found")
+            .clone();
 
-        self.custom_moods.sort_by(sort_by);
-        mergee.custom_moods.sort_by(sort_by);
+        let corresponding_self_mood = self
+            .custom_moods
+            .iter_mut()
+            .find(|mood| is_duplicate_mood(mood, added_mood));
 
-        let mut left_index = 0;
-        let mut right_index = 0;
-
-        while left_index < self.custom_moods.len() && right_index < mergee.custom_moods.len() {
-            let self_mood = &mut self.custom_moods[left_index];
-            let added_mood = &mut mergee.custom_moods[right_index];
-
-            if is_mergeable(self_mood, added_mood) {
-                Daylio::change_mood_id(&mut mergee.day_entries, added_mood, self_mood.id);
-                right_index += 1;
-            } else if sort_by(self_mood, added_mood) == std::cmp::Ordering::Less {
-                left_index += 1;
-            } else {
-                self.custom_moods.insert(left_index, added_mood.clone());
-                left_index += 1;
-                right_index += 1;
-            }
-        }
-
-        // Add the remaining moods from mergee
-        while right_index < mergee.custom_moods.len() {
-            let added_mood = &mut mergee.custom_moods[right_index];
+        if let Some(self_mood) = corresponding_self_mood {
+            // We keep the one from the reference file
+            entry.mood = self_mood.id;
+        } else {
+            let new_id = self
+                .custom_moods
+                .iter()
+                .map(|mood| mood.id)
+                .max()
+                .unwrap_or(0)
+                + 1;
+            added_mood.id = new_id;
+            entry.mood = new_id;
             self.custom_moods.push(added_mood.clone());
-            right_index += 1;
         }
-    }
 
-    pub fn add_unique_tags(&mut self, mergee: &mut Daylio) {
-        let is_mergeable = |tag1: &Tag, tag2: &Tag| tag1.name == tag2.name;
+        let is_duplicate_tag =
+            |tag1: &Tag, tag2: &Tag| tag1.name.to_uppercase() == tag2.name.to_uppercase();
 
-        let sort_by = |lhs: &Tag, rhs: &Tag| lhs.name.cmp(&rhs.name);
-        self.tags.sort_by(sort_by);
-        mergee.tags.sort_by(sort_by);
+        for entry_tag in &mut entry.tags {
+            let added_tag = &mut other
+                .tags
+                .iter()
+                .find(|tag| tag.id == *entry_tag)
+                .expect("Added tag not found")
+                .clone();
 
-        let mut left_index = 0;
-        let mut right_index = 0;
+            let corresponding_self_tag = self
+                .tags
+                .iter_mut()
+                .find(|tag| is_duplicate_tag(tag, added_tag));
 
-        while left_index < self.tags.len() && right_index < mergee.tags.len() {
-            let self_tag = &mut self.tags[left_index];
-            let added_tag = &mut mergee.tags[right_index];
-
-            if is_mergeable(self_tag, added_tag) {
-                Daylio::change_tag_id(&mut mergee.day_entries, added_tag, self_tag.id);
-                right_index += 1;
-            } else if sort_by(self_tag, added_tag) == std::cmp::Ordering::Less {
-                left_index += 1;
+            if let Some(self_tag) = corresponding_self_tag {
+                *entry_tag = self_tag.id;
             } else {
-                self.tags.insert(left_index, added_tag.clone());
-                left_index += 1;
-                right_index += 1;
+                let new_id = self.tags.iter().map(|tag| tag.id).max().unwrap_or(0) + 1;
+                added_tag.id = new_id;
+                *entry_tag = new_id;
+                self.tags.push(added_tag.clone());
             }
         }
 
-        // Add the remaining tags from mergee
-        while right_index < mergee.tags.len() {
-            let added_tag = &mut mergee.tags[right_index];
-            self.tags.push(added_tag.clone());
-            right_index += 1;
-        }
+        // Add the entry to the reference file
+        self.day_entries.insert(idx, entry.clone());
     }
 
     pub fn add_unique_entries(&mut self, mergee: &mut Daylio) {
-        // Aggressive simplification of the note: only keep alphanumeric characters
-        fn simplify_note_for_comparing(entry: &DayEntry) -> String {
-            (entry.note_title.clone() + &entry.note)
-                .chars()
-                .filter(|c| c.is_alphanumeric())
-                .map(|c| c.to_ascii_lowercase())
-                .collect()
-        }
-
-        fn is_mergeable(lhs: &mut DayEntry, rhs: &mut DayEntry) -> bool {
-            // 1. They have the same mood
-            let is_same_mood = lhs.mood == rhs.mood;
-
-            // 2. They have almost the same date
-            let timestamp_diff = (lhs.datetime - rhs.datetime).abs();
-            let is_same_day = timestamp_diff < MILLISECONDS_IN_A_DAY;
-
-            // 3. They have the same tags
-            lhs.tags.sort_unstable();
-            rhs.tags.sort_unstable();
-            let is_same_tags = lhs.tags == rhs.tags;
-
-            // 4. They have the same alphanumeric content
-            let same_note = simplify_note_for_comparing(lhs) == simplify_note_for_comparing(rhs);
-
-            is_same_day && is_same_mood && is_same_tags && same_note
-        }
-
         let sort_by = |lhs: &DayEntry, rhs: &DayEntry| {
             lhs.datetime
                 .cmp(&rhs.datetime)
@@ -185,12 +136,19 @@ impl Daylio {
             let self_entry = &mut self.day_entries[left_index];
             let added_entry = &mut mergee.day_entries[right_index];
 
-            if is_mergeable(self_entry, added_entry) {
+            let timestamp_diff = (self_entry.datetime - added_entry.datetime).abs();
+            let same_day = timestamp_diff < MILLISECONDS_IN_A_DAY;
+
+            let same_note = Self::simplify_note_for_comparing(self_entry)
+                == Self::simplify_note_for_comparing(added_entry);
+
+            if same_day && same_note {
+                // We keep the one from the reference file
                 right_index += 1;
             } else if sort_by(self_entry, added_entry) == std::cmp::Ordering::Less {
                 left_index += 1;
             } else {
-                self.day_entries.insert(left_index, added_entry.clone());
+                self.add_entry(added_entry.clone(), mergee, left_index);
                 left_index += 1;
                 right_index += 1;
             }
@@ -199,7 +157,7 @@ impl Daylio {
         // Add the remaining entries from mergee
         while right_index < mergee.day_entries.len() {
             let added_entry = &mut mergee.day_entries[right_index];
-            self.day_entries.push(added_entry.clone());
+            self.add_entry(added_entry.clone(), mergee, left_index);
             right_index += 1;
         }
     }
@@ -225,16 +183,15 @@ impl Daylio {
             }
         }
 
-        let mut id_generator = IdGenerator::with_start(1, NUMBER_OF_PREDEFINED_MOODS + 1);
+        // first pass on moods, to avoid collisions when changing ids
+        let mut id_generator = IdGenerator::new(100_000);
+        for mood in &mut self.custom_moods {
+            Self::change_mood_id(&mut self.day_entries, mood, id_generator.next());
+        }
 
         // order is important, so we need to sort by mood_group_id and predefined comes first
         self.custom_moods
             .sort_by_key(|x| (x.mood_group_id, -x.predefined_name_id));
-        for mood in &mut self.custom_moods {
-            if mood.predefined_name_id == -1 {
-                Daylio::change_mood_id(&mut self.day_entries, mood, id_generator.next());
-            }
-        }
 
         // predefined moods have to have the same id as the predefined name
         for mood in &mut self.custom_moods {
@@ -253,14 +210,6 @@ impl Daylio {
                 self.custom_moods[i].mood_group_order =
                     self.custom_moods[i - 1].mood_group_order + 1;
             }
-        }
-
-        // set tags order
-        self.tags.sort_by_key(|x| x.created_at);
-        let mut id_generator = IdGenerator::new(1);
-        for (i, tag) in self.tags.iter_mut().enumerate() {
-            Daylio::change_tag_id(&mut self.day_entries, tag, id_generator.next());
-            tag.order = i as i64 + 1;
         }
 
         // make sure entries are sorted
@@ -285,15 +234,6 @@ pub fn merge(mut reference: Daylio, mut mergee: Daylio) -> color_eyre::Result<Da
         .check_soundness()
         .context("Mergee file is not sound. Please check the file and try again.")?;
 
-    const BIG_OFFSET: i64 = 1000;
-
-    // first_pass: make sure we don't have any duplicates id
-    let mut id_generator = IdGenerator::new(BIG_OFFSET);
-    reference.make_ids_distinct(&mut id_generator);
-    mergee.make_ids_distinct(&mut id_generator);
-
-    reference.add_unique_moods(&mut mergee);
-    reference.add_unique_tags(&mut mergee);
     reference.add_unique_entries(&mut mergee);
 
     reference.sanitize();

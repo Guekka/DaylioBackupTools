@@ -103,7 +103,6 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
         for tag in &tags_by_decreasing_length {
             // tag comparison is case-sensitive
             if line.contains(&tag.name) {
-                println!("Found tag {} in line {}", tag.name, line);
                 line_tags.push(tag.name.clone());
                 // removing the tag is not very efficient, but probably not a big deal
                 line = line.replace(&tag.name, "").to_owned();
@@ -115,13 +114,6 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
             entry_tags.extend(line_tags);
             last_tag_line = Some(i);
         } else {
-            if !line_tags.is_empty() {
-                println!(
-                    "Discarding found tags {} in line {}",
-                    line_tags.join(", "),
-                    line
-                );
-            }
             // we have reached the end of the tags
             break;
         }
@@ -133,8 +125,43 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
         note_lines.drain(..=last_tag_line);
     }
 
-    // add tags detected by the parser
-    entry_tags.extend(entry.tags.clone());
+    // add tags detected by the parser, making sure they're valid. Try to guess the tags
+    // if one is invalid
+    let mut parsed_tags = entry.tags.to_owned();
+    while parsed_tags.len() > 0 {
+        let parsed_tag = parsed_tags.pop().unwrap();
+
+        if all_tags
+            .iter()
+            .any(|x| x.name.to_lowercase() == parsed_tag.to_lowercase())
+        {
+            entry_tags.push(parsed_tag);
+        } else {
+            for tag in &tags_by_decreasing_length {
+                // maybe two tags were mistakenly concatenated
+                if parsed_tag.to_lowercase().contains(&tag.name.to_lowercase()) {
+                    entry_tags.push(tag.name.clone());
+                    // remove the tag from the note
+                    let remaining_parsed_tag = parsed_tag.replace(&tag.name, "").trim().to_owned();
+
+                    println!(
+                        "Guessed tag {} from {}. Adding remaining to pending: {}",
+                        tag.name, parsed_tag, remaining_parsed_tag
+                    );
+
+                    if !remaining_parsed_tag.is_empty() {
+                        parsed_tags.push(remaining_parsed_tag);
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+    // dedup (TODO: this should not be necessary)
+    entry_tags.sort();
+    entry_tags.dedup();
 
     (note_lines.join("\n"), entry_tags)
 }
@@ -458,10 +485,10 @@ impl TryFrom<ProcessedPdf> for Daylio {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::parse_pdf::StatLine;
     use chrono::{Datelike, NaiveDate, Timelike};
     use similar_asserts::assert_eq;
-
-    use super::*;
 
     #[test]
     fn test_simplify_note_heuristically() {
@@ -533,14 +560,25 @@ Preserve the empty line, but not the final one
             tags: vec![],
         };
 
-        let stats = vec![
-            StatLine::with_name("some tag"),
-            StatLine::with_name("another tag"),
-            StatLine::with_name("yet another tag"),
-            StatLine::with_name("A tag, on another line"),
-            StatLine::with_name("A tag that does not matches CASE"),
+        let tags = vec![
+            Tag {
+                id: 0,
+                name: "some tag".to_owned(),
+            },
+            Tag {
+                id: 1,
+                name: "another tag".to_owned(),
+            },
+            Tag {
+                id: 2,
+                name: "yet another tag".to_owned(),
+            },
+            Tag {
+                id: 3,
+                name: "A tag, on another line".to_owned(),
+            },
         ];
-        let (note, tags) = extract_tags(&entry, &stats);
+        let (note, tags) = extract_tags(&entry, &tags);
 
         let expected_note = [
             "A tag that does not matches case".to_owned(),
@@ -549,10 +587,10 @@ Preserve the empty line, but not the final one
         ]
         .join("\n");
         let expected_tags = vec![
-            "yet another tag".to_owned(),
+            "A tag, on another line".to_owned(),
             "another tag".to_owned(),
             "some tag".to_owned(),
-            "A tag, on another line".to_owned(),
+            "yet another tag".to_owned(),
         ];
 
         assert_eq!(note, expected_note);
@@ -616,7 +654,7 @@ Preserve the empty line, but not the final one
                 ProcessedDayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
                     mood: 2,
-                    tags: vec![2, 1, 0],
+                    tags: vec![1, 0, 2],
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
