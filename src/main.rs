@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use color_eyre::eyre::Result;
 
 use clap::{Parser, Subcommand};
-use daylio_tools::{load_daylio, merge, store_daylio_backup, store_daylio_json};
+use daylio_tools::{load_daylio, merge, store_daylio, store_daylio_backup, store_daylio_json};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -73,7 +73,7 @@ fn main() -> Result<()> {
                     reference.day_entries.len()
                 );
             }
-            store_daylio_backup(&reference, &output)?;
+            store_daylio(&reference, &output)?;
             println!("Wrote merged file to {output:#?}");
         }
         Commands::Anonymize { input, output } => {

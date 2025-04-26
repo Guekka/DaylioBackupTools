@@ -8,32 +8,32 @@ use color_eyre::{Result, eyre};
 use std::collections::HashSet;
 
 #[derive(Debug, PartialEq, Clone, Default)]
-struct ProcessedDayEntry {
-    date: NaiveDateTime,
-    mood: i64,
-    tags: Vec<i64>,
-    note: String,
+pub(crate) struct ProcessedDayEntry {
+    pub(crate) date: NaiveDateTime,
+    pub(crate) mood: i64,
+    pub(crate) tags: Vec<i64>,
+    pub(crate) note: String,
 }
 
 #[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
-struct Mood {
-    id: i64,
-    name: String,
-    group: i64,
-    predefined: bool,
+pub(crate) struct Mood {
+    pub(crate) id: i64,
+    pub(crate) name: String,
+    pub(crate) group: i64,
+    pub(crate) predefined: bool,
 }
 
 #[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
-struct Tag {
+pub(crate) struct Tag {
     id: i64,
     name: String,
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub(crate) struct ProcessedPdf {
-    day_entries: Vec<ProcessedDayEntry>,
-    moods: Vec<Mood>,
-    tags: Vec<Tag>,
+    pub(crate) day_entries: Vec<ProcessedDayEntry>,
+    pub(crate) moods: Vec<Mood>,
+    pub(crate) tags: Vec<Tag>,
 }
 
 fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {

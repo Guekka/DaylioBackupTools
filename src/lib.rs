@@ -14,4 +14,5 @@ mod anonymize;
 mod daylio;
 mod load_store;
 mod merge;
+mod parse_md;
 mod parse_pdf;

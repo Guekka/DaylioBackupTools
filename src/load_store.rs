@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::io::prelude::*;
@@ -11,6 +12,7 @@ use zip::write::SimpleFileOptions;
 
 use crate::Daylio;
 use crate::analyze_pdf::ProcessedPdf;
+use crate::parse_md::load_md;
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
     let file = File::open(path)?;
@@ -48,6 +50,8 @@ pub fn load_daylio(path: &Path) -> Result<Daylio> {
             "daylio" => load_daylio_backup(path),
             "json" => load_daylio_json(path),
             "pdf" => load_daylio_pdf(path),
+            "md" => load_md(path),
+
             _ => Err(eyre!("Unknown file extension")),
         }
     } else {
@@ -79,4 +83,55 @@ pub fn store_daylio_json(daylio: &Daylio, path: &Path) -> Result<()> {
     file.write_all(json.as_bytes())?;
 
     Ok(())
+}
+
+pub fn store_daylio_md(daylio: &Daylio, path: &Path) -> Result<()> {
+    let mut file = File::create(path)?;
+    let tag_map: HashMap<i64, String> = daylio
+        .tags
+        .iter()
+        .map(|tag| (tag.id, tag.name.clone()))
+        .collect();
+
+    let mood_map: HashMap<i64, String> = daylio
+        .custom_moods
+        .iter()
+        .map(|mood| (mood.id, mood.custom_name.clone()))
+        .collect();
+
+    for entry in &daylio.day_entries {
+        writeln!(
+            file,
+            "[{:04}-{:02}-{:02} {:02}:{:02}]",
+            entry.year, entry.month, entry.day, entry.hour, entry.minute
+        )?;
+        writeln!(file, "{{{}}}", mood_map.get(&entry.mood).unwrap())?;
+        writeln!(
+            file,
+            "{}",
+            entry
+                .tags
+                .iter()
+                .map(|tag| format!("#{}", tag_map.get(tag).unwrap()))
+                .collect::<Vec<_>>()
+                .join(",")
+        )?;
+        writeln!(file, "{}\n", entry.note)?;
+    }
+
+    Ok(())
+}
+
+pub fn store_daylio(daylio: &Daylio, path: &Path) -> Result<()> {
+    if let Some(ext) = path.extension() {
+        let ext = ext.to_str().wrap_err("Unknown file extension")?;
+        match ext.to_lowercase().as_ref() {
+            "daylio" => store_daylio_backup(daylio, path),
+            "json" => store_daylio_json(daylio, path),
+            "md" => store_daylio_md(daylio, path),
+            _ => Err(eyre!("Unknown file extension")),
+        }
+    } else {
+        Err(eyre!("Missing file extension"))
+    }
 }
