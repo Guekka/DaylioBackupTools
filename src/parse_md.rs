@@ -11,24 +11,36 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::LazyLock;
-
-static BASE_DATE_REGEX: LazyLock<Regex, fn() -> Regex> =
-    LazyLock::new(|| Regex::new(r"^\[(.*?)]$").unwrap());
-
-static TIME_REGEX: LazyLock<Regex, fn() -> Regex> =
-    LazyLock::new(|| Regex::new(r"(\d{2})[:h](\d{2})").unwrap());
-
-static DATE_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
-    LazyLock::new(|| Regex::new(r"(\d{4})-(\d{2})-(\d{2})").unwrap());
+static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
+    LazyLock::new(|| {
+        Regex::new(
+            r"(?x)
+            # delimiter
+            \[
+            # optional yyyy-mm-dd, ended by space
+            (?:
+              (?P<y>\d{4}) # the year
+              -
+              (?P<m>\d{2}) # the month
+              -
+              (?P<d>\d{2}) # the day
+              \x20 # space
+            )?
+            # mandatory hh:mm
+            (?P<hh>\d{2})
+            [:h]
+            (?P<mm>\d{2})
+            # end delimiter
+            ]
+            ",
+        )
+        .unwrap()
+    });
 
 pub(crate) fn parse_md(input: &str) -> Result<ProcessedPdf> {
     // entries are separated by a date in the format[YYYY-MM-DD HH:MM], with one of day and hour optional
 
-    let day_entries = input
-        .lines()
-        .fold(Vec::<(String, String)>::new(), split_entries)
-        .into_iter()
-        .collect::<Vec<_>>();
+    let day_entries = split_entries(input);
 
     let day_entries = forward_fill_dates(day_entries)
         .into_iter()
@@ -47,44 +59,22 @@ pub(crate) fn parse_md(input: &str) -> Result<ProcessedPdf> {
     })
 }
 
-fn forward_fill_dates(entries: Vec<(String, String)>) -> Vec<(NaiveDateTime, String)> {
+fn forward_fill_dates(
+    entries: Vec<(Option<NaiveDate>, NaiveTime, String)>,
+) -> Vec<(NaiveDateTime, String)> {
+    // for this case, we assume all dates are complete
     if entries.len() < 2 {
         return entries
             .into_iter()
-            .map(|(date, note)| {
-                let date = dateparser::parse_with_timezone(&date, &chrono::offset::Utc)
-                    .expect("Invalid date");
-                (date.naive_local(), note)
-            })
+            .map(|(date, time, note)| (date.unwrap().and_time(time), note))
             .collect();
     }
 
     let mut previous_day: Option<NaiveDate> = None;
     let mut dated_entries = Vec::new();
 
-    for (date, note) in entries {
-        // parse date. day is optional
-        let (day, time) = date.split_once(' ').unwrap_or(("", date.as_str()));
-
-        let ymd = if day.is_empty() {
-            None
-        } else {
-            Some(
-                DATE_REGEX
-                    .captures(day)
-                    .and_then(|caps| {
-                        let year = caps[1].parse::<i32>().ok()?;
-                        let month = caps[2].parse::<u32>().ok()?;
-                        let day = caps[3].parse::<u32>().ok()?;
-                        NaiveDate::from_ymd_opt(year, month, day)
-                    })
-                    .unwrap_or_else(|| {
-                        panic!("Invalid date format: {}. Expected format: YYYY-MM-DD", day)
-                    }),
-            )
-        };
-
-        let ymd = ymd.unwrap_or_else(|| {
+    for (day, hm, note) in entries {
+        let ymd = day.unwrap_or_else(|| {
             if let Some(previous_day) = previous_day {
                 previous_day
             } else {
@@ -92,18 +82,8 @@ fn forward_fill_dates(entries: Vec<(String, String)>) -> Vec<(NaiveDateTime, Str
             }
         });
 
-        let hm = TIME_REGEX
-            .captures(time)
-            .and_then(|caps| {
-                let hour = caps[1].parse::<u32>().ok()?;
-                let minute = caps[2].parse::<u32>().ok()?;
-                NaiveTime::from_hms_opt(hour, minute, 0)
-            })
-            .unwrap_or_else(|| panic!("Invalid time format: {}. Expected format: HH:MM", time));
-
         let date = NaiveDateTime::new(ymd, hm);
         dated_entries.push((date, note));
-
         previous_day = Some(ymd);
     }
 
@@ -119,24 +99,71 @@ fn make_entry(date: NaiveDateTime, note: String) -> Result<ProcessedDayEntry, Re
     })
 }
 
-fn split_entries(mut entries: Vec<(String, String)>, line: &str) -> Vec<(String, String)> {
-    if let Some(caps) = BASE_DATE_REGEX.captures(line) {
-        entries.push((caps[1].to_string(), String::new()));
-    } else {
-        if let Some((_date, body)) = entries.last_mut() {
-            if body.is_empty() {
-                *body = line.to_string();
+fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
+    let boundaries_dates = input
+        .lines()
+        .enumerate()
+        .filter_map(|(line_num, line)| {
+            let captures = DATE_TIME_REGEX.captures(line)?;
+
+            // optional date
+            let date = if captures.name("y").is_some() {
+                NaiveDate::from_ymd_opt(
+                    captures["y"].parse::<i32>().unwrap(),
+                    captures["m"].parse::<u32>().unwrap(),
+                    captures["d"].parse::<u32>().unwrap(),
+                )
             } else {
-                *body += "\n";
-                *body += line;
-            }
-        }
+                None
+            };
+
+            // mandatory time
+            let time = NaiveTime::from_hms_opt(
+                captures["hh"].parse::<u32>().unwrap(),
+                captures["mm"].parse::<u32>().unwrap(),
+                0,
+            )
+            .unwrap();
+
+            Some((line_num, date, time))
+        })
+        .collect::<Vec<_>>();
+
+    if boundaries_dates.is_empty() {
+        return Vec::new();
     }
-    // trim final whitespaces
+
+    let extract_entry = |start, end, date, time| {
+        let body = &input
+            .lines()
+            .skip(start + 1)
+            .take(end - start - 1)
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        (date, time, body.trim().to_string())
+    };
+
+    let mut entries: Vec<(Option<NaiveDate>, NaiveTime, String)> = boundaries_dates
+        .windows(2)
+        .map(|window| {
+            let [(start, start_date, start_time), (end, _, _)] = window else {
+                panic!("Window should have exactly two elements");
+            };
+            extract_entry(*start, *end, start_date.clone(), start_time.clone())
+        })
+        .collect();
+
+    let last_entry = boundaries_dates.last().unwrap();
+    let last_entry = extract_entry(
+        last_entry.0,
+        input.lines().count(),
+        last_entry.1.clone(),
+        last_entry.2.clone(),
+    );
+
+    entries.push(last_entry);
     entries
-        .into_iter()
-        .map(|(date, body)| (date, body.trim().to_owned()))
-        .collect()
 }
 
 pub(crate) fn load_md(path: &Path) -> Result<Daylio> {
@@ -158,6 +185,13 @@ mod tests {
 Full date
 [12:00]
 No date, deduced from previous
+
+[2025-10-01 10:00]
+Make sure
+
+we keep
+
+whitespace
 "#;
 
         // When
@@ -183,6 +217,15 @@ No date, deduced from previous
                     mood: 10,
                     tags: vec![],
                     note: "No date, deduced from previous".to_string(),
+                },
+                ProcessedDayEntry {
+                    date: NaiveDate::from_ymd_opt(2025, 10, 1)
+                        .unwrap()
+                        .and_hms_opt(10, 0, 0)
+                        .unwrap(),
+                    mood: 10,
+                    tags: vec![],
+                    note: "Make sure\n\nwe keep\n\nwhitespace".to_string(),
                 },
             ],
             moods: vec![Mood {
