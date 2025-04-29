@@ -4,7 +4,7 @@ use serde_derive::Deserialize;
 use serde_derive::Serialize;
 use serde_json::Value;
 
-pub const NUMBER_OF_PREDEFINED_MOODS: i64 = 5;
+pub const NUMBER_OF_PREDEFINED_MOODS: u64 = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,15 +43,108 @@ impl Daylio {
                     eyre::bail!("Invalid tag id {} in entry {:?}", tag, entry);
                 }
             }
+
+            for i in 1..=NUMBER_OF_PREDEFINED_MOODS as i64 {
+                if !self
+                    .custom_moods
+                    .iter()
+                    .any(|mood| mood.predefined_name_id == i)
+                {
+                    eyre::bail!("Missing predefined mood {}", i);
+                }
+            }
         }
 
         Ok(())
+    }
+
+    fn change_mood_id(day_entries: &mut [DayEntry], mood: &mut CustomMood, new_id: i64) {
+        for entry in day_entries {
+            if entry.mood == mood.id {
+                entry.mood = new_id;
+            }
+        }
+        mood.id = new_id;
+    }
+
+    pub fn sanitize(&mut self) {
+        const BIG_OFFSET: i64 = 100_000;
+
+        // make sure all default moods are present
+        for default_mood in Daylio::default().custom_moods {
+            if !self
+                .custom_moods
+                .iter()
+                .any(|mood| mood.predefined_name_id == default_mood.predefined_name_id)
+            {
+                self.custom_moods.push(default_mood);
+            }
+        }
+
+        // first pass on moods, to avoid collisions when changing ids
+        for (i, mood) in self.custom_moods.iter_mut().enumerate() {
+            Self::change_mood_id(&mut self.day_entries, mood, i as i64 * BIG_OFFSET);
+        }
+
+        // order is important, so we need to sort by mood_group_id and predefined comes first
+        self.custom_moods
+            .sort_by_key(|x| (x.mood_group_id, -x.predefined_name_id));
+
+        // predefined moods have to have the same id as the predefined name
+        for mood in &mut self.custom_moods {
+            if mood.predefined_name_id != -1 {
+                Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
+            }
+        }
+
+        // each mood group has an order, so we need to update it
+        for i in 0..self.custom_moods.len() {
+            if i == 0
+                || self.custom_moods[i].mood_group_id != self.custom_moods[i - 1].mood_group_id
+            {
+                self.custom_moods[i].mood_group_order = 0;
+            } else {
+                self.custom_moods[i].mood_group_order =
+                    self.custom_moods[i - 1].mood_group_order + 1;
+            }
+        }
+
+        // make sure entries are sorted
+        self.day_entries
+            .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
+        for (i, entry) in self.day_entries.iter_mut().enumerate() {
+            entry.id = i as i64;
+        }
+    }
+}
+
+#[must_use]
+pub fn daylio_predefined_mood_idx(custom_name: &str) -> Option<u64> {
+    match custom_name.to_lowercase().as_ref() {
+        "super" | "rad" => Some(1),
+        "bien" | "good" => Some(2),
+        "mouais" | "meh" => Some(3),
+        "mauvais" | "bad" => Some(4),
+        "horrible" | "awful" => Some(5),
+        _ => None,
+    }
+}
+
+#[must_use]
+pub fn daylio_predefined_mood_name(id: i64) -> Option<&'static str> {
+    match id {
+        1 => Some("super"),
+        2 => Some("bien"),
+        3 => Some("mouais"),
+        4 => Some("mauvais"),
+        5 => Some("horrible"),
+        _ => None,
     }
 }
 
 impl Default for Daylio {
     fn default() -> Self {
-        let moods = (1..=5)
+        let moods = (1..=NUMBER_OF_PREDEFINED_MOODS as i64)
             .map(|i| CustomMood {
                 id: i,
                 icon_id: i,

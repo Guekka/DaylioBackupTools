@@ -147,12 +147,13 @@ mod tests {
             ..Default::default()
         };
 
-        let pdf_daylio = Daylio {
+        let mut pdf_daylio = Daylio {
             custom_moods,
             tags: vec![duplicate_tag],
             day_entries: vec![pdf_entry, pdf_entry2],
             ..Default::default()
         };
+        pdf_daylio.sanitize(); // add default moods
 
         // remove duplicates
         let merged = merge(original_daylio, pdf_daylio).unwrap();

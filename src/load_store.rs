@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::io::prelude::*;
@@ -11,7 +10,7 @@ use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
 use crate::Daylio;
-use crate::analyze_pdf::ProcessedPdf;
+use crate::models::Diary;
 use crate::parse_md::load_md;
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
@@ -37,18 +36,15 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
     serde_json::from_str(&data).wrap_err("Failed to parse Daylio JSON")
 }
 
-pub fn load_daylio_pdf(path: &Path) -> Result<Daylio> {
-    crate::parse_pdf::parse_pdf(path)
-        .and_then(TryInto::<ProcessedPdf>::try_into)
-        .and_then(TryInto::<Daylio>::try_into)
+pub fn load_daylio_pdf(path: &Path) -> Result<Diary> {
+    crate::parse_pdf::parse_pdf(path).and_then(TryInto::<Diary>::try_into)
 }
 
-pub fn load_daylio(path: &Path) -> Result<Daylio> {
+pub fn load_diary(path: &Path) -> Result<Diary> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
-            "daylio" => load_daylio_backup(path),
-            "json" => load_daylio_json(path),
+            "daylio" => load_daylio_backup(path).map(Into::<Diary>::into),
             "pdf" => load_daylio_pdf(path),
             "md" => load_md(path),
 
@@ -59,13 +55,13 @@ pub fn load_daylio(path: &Path) -> Result<Daylio> {
     }
 }
 
-pub fn store_daylio_backup(daylio: &Daylio, path: &Path) -> Result<()> {
+pub fn store_daylio_backup(daylio: Daylio, path: &Path) -> Result<()> {
     let file = File::create(path)?;
 
     let mut archive = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    let json = serde_json::to_string_pretty(daylio)?;
+    let json = serde_json::to_string_pretty(&daylio)?;
 
     let data = BASE64.encode(json.as_bytes());
 
@@ -85,34 +81,22 @@ pub fn store_daylio_json(daylio: &Daylio, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn store_daylio_md(daylio: &Daylio, path: &Path) -> Result<()> {
+pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
     let mut file = File::create(path)?;
-    let tag_map: HashMap<i64, String> = daylio
-        .tags
-        .iter()
-        .map(|tag| (tag.id, tag.name.clone()))
-        .collect();
+    diary.day_entries.sort_unstable_by_key(|entry| entry.date);
 
-    let mood_map: HashMap<i64, String> = daylio
-        .custom_moods
-        .iter()
-        .map(|mood| (mood.id, mood.custom_name.clone()))
-        .collect();
-
-    for entry in &daylio.day_entries {
-        writeln!(
-            file,
-            "[{:04}-{:02}-{:02} {:02}:{:02}]",
-            entry.year, entry.month, entry.day, entry.hour, entry.minute
-        )?;
-        writeln!(file, "{{{}}}", mood_map.get(&entry.mood).unwrap())?;
+    for entry in diary.day_entries {
+        writeln!(file, "{}", &entry.date.format("[%Y-%m-%d %H:%M]"))?;
+        if let Some(mood) = &entry.mood {
+            writeln!(file, "{{{}}}", mood.name)?;
+        }
         writeln!(
             file,
             "{}",
             entry
                 .tags
                 .iter()
-                .map(|tag| format!("#{}", tag_map.get(tag).unwrap()))
+                .map(|tag| tag.name.clone())
                 .collect::<Vec<_>>()
                 .join(",")
         )?;
@@ -122,13 +106,12 @@ pub fn store_daylio_md(daylio: &Daylio, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn store_daylio(daylio: &Daylio, path: &Path) -> Result<()> {
+pub fn store_diary(diary: Diary, path: &Path) -> Result<()> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
-            "daylio" => store_daylio_backup(daylio, path),
-            "json" => store_daylio_json(daylio, path),
-            "md" => store_daylio_md(daylio, path),
+            "daylio" => store_daylio_backup(diary.try_into()?, path),
+            "md" => store_diary_md(diary, path),
             _ => Err(eyre!("Unknown file extension")),
         }
     } else {

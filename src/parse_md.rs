@@ -1,16 +1,17 @@
 //! Parses a Markdown diary. This is not exactly related to Daylio, and is tailored to my
 //! personal needs.
 
-use crate::Daylio;
-use crate::analyze_pdf::{Mood, ProcessedDayEntry, ProcessedPdf};
+use crate::models::{DayEntry, Diary};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use color_eyre::Report;
 use color_eyre::eyre::Result;
 use regex::Regex;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::LazyLock;
+
 static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
     LazyLock::new(|| {
         Regex::new(
@@ -37,7 +38,7 @@ static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
         .unwrap()
     });
 
-pub(crate) fn parse_md(input: &str) -> Result<ProcessedPdf> {
+pub(crate) fn parse_md(input: &str) -> Diary {
     // entries are separated by a date in the format[YYYY-MM-DD HH:MM], with one of day and hour optional
 
     let day_entries = split_entries(input);
@@ -45,18 +46,13 @@ pub(crate) fn parse_md(input: &str) -> Result<ProcessedPdf> {
     let day_entries = forward_fill_dates(day_entries)
         .into_iter()
         .map(|(date, note)| make_entry(date, note))
-        .collect::<Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
 
-    Ok(ProcessedPdf {
+    Diary {
         day_entries,
-        moods: vec![Mood {
-            id: 10,
-            name: String::from("Inconnu"),
-            group: 0,
-            predefined: false,
-        }],
-        tags: Vec::new(),
-    })
+        moods: vec![],
+        tags: vec![],
+    }
 }
 
 fn forward_fill_dates(
@@ -90,13 +86,13 @@ fn forward_fill_dates(
     dated_entries
 }
 
-fn make_entry(date: NaiveDateTime, note: String) -> Result<ProcessedDayEntry, Report> {
-    Ok(ProcessedDayEntry {
+fn make_entry(date: NaiveDateTime, note: String) -> DayEntry {
+    DayEntry {
         date,
-        mood: 10,
-        tags: vec![],
+        mood: None,
+        tags: HashSet::new(),
         note,
-    })
+    }
 }
 
 fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
@@ -150,7 +146,7 @@ fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
             let [(start, start_date, start_time), (end, _, _)] = window else {
                 panic!("Window should have exactly two elements");
             };
-            extract_entry(*start, *end, start_date.clone(), start_time.clone())
+            extract_entry(*start, *end, *start_date, *start_time)
         })
         .collect();
 
@@ -158,19 +154,19 @@ fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
     let last_entry = extract_entry(
         last_entry.0,
         input.lines().count(),
-        last_entry.1.clone(),
-        last_entry.2.clone(),
+        last_entry.1,
+        last_entry.2,
     );
 
     entries.push(last_entry);
     entries
 }
 
-pub(crate) fn load_md(path: &Path) -> Result<Daylio> {
+pub(crate) fn load_md(path: &Path) -> Result<Diary> {
     let mut file = File::open(path)?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;
-    parse_md(&data).map(|processed| processed.try_into())?
+    Ok(parse_md(&data))
 }
 
 #[cfg(test)]
@@ -198,43 +194,37 @@ whitespace
         let parsed = parse_md(INPUT)?;
 
         // Then
-        let expected: ProcessedPdf = ProcessedPdf {
+        let expected: Diary = Diary {
+            moods: vec![],
             day_entries: vec![
-                ProcessedDayEntry {
+                DayEntry {
                     date: chrono::NaiveDate::from_ymd_opt(2023, 10, 1)
                         .unwrap()
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
-                    mood: 10,
+                    mood: None,
                     tags: vec![],
                     note: "Full date".to_string(),
                 },
-                ProcessedDayEntry {
+                DayEntry {
                     date: NaiveDate::from_ymd_opt(2023, 10, 1)
                         .unwrap()
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
-                    mood: 10,
+                    mood: None,
                     tags: vec![],
                     note: "No date, deduced from previous".to_string(),
                 },
-                ProcessedDayEntry {
+                DayEntry {
                     date: NaiveDate::from_ymd_opt(2025, 10, 1)
                         .unwrap()
                         .and_hms_opt(10, 0, 0)
                         .unwrap(),
-                    mood: 10,
+                    mood: None,
                     tags: vec![],
                     note: "Make sure\n\nwe keep\n\nwhitespace".to_string(),
                 },
             ],
-            moods: vec![Mood {
-                id: 10,
-                name: String::from("Inconnu"),
-                group: 0,
-                predefined: false,
-            }],
-            tags: Vec::new(),
         };
 
         assert_eq!(parsed, expected);
