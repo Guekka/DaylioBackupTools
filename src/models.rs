@@ -78,10 +78,19 @@ impl From<Daylio> for Diary {
         let moods = daylio
             .custom_moods
             .iter()
-            .map(|mood| MoodDetail {
-                name: mood.custom_name.clone(),
-                icon_id: Some(mood.icon_id),
-                group: u8::try_from(mood.mood_group_id).unwrap(),
+            .map(|mood| {
+                let name = if !mood.custom_name.is_empty() {
+                    mood.custom_name.clone()
+                } else {
+                    daylio_predefined_mood_name(mood.predefined_name_id)
+                        .unwrap()
+                        .into()
+                };
+                MoodDetail {
+                    name,
+                    icon_id: Some(mood.icon_id),
+                    group: u8::try_from(mood.mood_group_id).unwrap(),
+                }
             })
             .collect();
 
@@ -111,9 +120,7 @@ impl From<Daylio> for Diary {
             .iter()
             .map(|entry| {
                 let predefined_name = daylio_predefined_mood_name(entry.mood);
-                let mood = if let Some(predefined_name) = predefined_name {
-                    Mood::new(predefined_name)
-                } else {
+                let mood = {
                     let name = mood_map.get(&entry.mood).unwrap();
                     Mood::new(&name.custom_name)
                 };
