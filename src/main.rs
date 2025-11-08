@@ -4,8 +4,8 @@ use color_eyre::eyre::Result;
 
 use clap::{Parser, Subcommand};
 use daylio_tools::{
-    load_daylio_backup, load_daylio_json, load_diary, merge, store_daylio_backup,
-    store_daylio_json, store_diary,
+    DayEntryComparisonPolicy, load_daylio_backup, load_daylio_json, load_diary, merge,
+    store_daylio_backup, store_daylio_json, store_diary,
 };
 
 #[derive(Parser)]
@@ -62,7 +62,8 @@ fn main() -> Result<()> {
                     other.day_entries.len(),
                     reference.day_entries.len()
                 );
-                reference = merge(reference, other)?;
+                // TODO: make policy configurable
+                reference = merge(reference, other, DayEntryComparisonPolicy::Contained)?;
                 println!(
                     "Merged into {:#?} with {} entries",
                     inputs[0],

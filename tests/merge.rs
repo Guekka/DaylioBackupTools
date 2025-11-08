@@ -4,10 +4,7 @@ mod tests {
     use color_eyre::Result;
     use std::collections::HashSet;
 
-    use daylio_tools::{
-        DayEntry, Daylio, DaylioCustomMood, DaylioDayEntry, DaylioTag, Diary, Mood,
-        load_daylio_backup, merge,
-    };
+    use daylio_tools::{DayEntry, Daylio, DaylioCustomMood, DaylioDayEntry, DaylioTag, Diary, Mood, load_daylio_backup, merge, DayEntryComparisonPolicy};
     use similar_asserts::assert_eq;
 
     #[test]
@@ -161,7 +158,7 @@ mod tests {
         pdf_daylio.sanitize(); // add default moods
 
         // remove duplicates
-        let merged = merge(Diary::from(original_daylio), Diary::from(pdf_daylio)).unwrap();
+        let merged = merge(Diary::from(original_daylio), Diary::from(pdf_daylio), DayEntryComparisonPolicy::Relaxed).unwrap();
 
         // check that there are no duplicates
         assert_eq!(merged.moods.len(), 5);
@@ -380,7 +377,7 @@ mod tests {
                 .collect();
         }
 
-        let merged = merge(Diary::from(input1), Diary::from(input2))?;
+        let merged = merge(Diary::from(input1), Diary::from(input2), DayEntryComparisonPolicy::Relaxed)?;
 
         assert_eq!(merged, Diary::from(expected));
 
@@ -395,7 +392,7 @@ mod tests {
 
         let expected = load_daylio_backup("tests/data/merged.daylio".as_ref())?;
 
-        let merged = merge(Diary::from(input1), Diary::from(input2))?;
+        let merged = merge(Diary::from(input1), Diary::from(input2), DayEntryComparisonPolicy::Relaxed)?;
 
         assert_eq!(merged, Diary::from(expected));
 

@@ -45,7 +45,6 @@ mod tests {
     fn expected_pdf(french: bool) -> Diary {
         let rad_name = if french { "super" } else { "rad" };
         let meh_name = if french { "mouais" } else { "meh" };
-        let good_name = if french { "bien" } else { "good" };
         let awful_name = if french { "horrible" } else { "awful" };
 
         let expected_moods = vec![

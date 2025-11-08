@@ -1,6 +1,19 @@
 use crate::models::{DayEntry, Diary};
 use chrono::TimeDelta;
 
+/// Policy for comparing day entries
+/// - Strict: note must be exactly the same
+/// - Relaxed: note must be the same after simplification
+/// - Contained: one note must be contained in the other after simplification
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DayEntryComparisonPolicy {
+    Strict,
+    Relaxed,
+    Contained,
+}
+
+const MIN_LENGTH_FOR_CONTAINED_COMPARISON: usize = 20;
+
 impl Diary {
     /// Aggressive simplification of the note: only keep alphanumeric characters
     fn simplify_note_for_comparing(entry: &DayEntry) -> String {
@@ -12,7 +25,11 @@ impl Diary {
             .collect()
     }
 
-    pub fn add_unique_entries(&mut self, mergee: &mut Diary) {
+    pub fn add_unique_entries(
+        &mut self,
+        mergee: &mut Diary,
+        comparison_policy: DayEntryComparisonPolicy,
+    ) {
         let sort_by = |lhs: &DayEntry, rhs: &DayEntry| {
             lhs.date
                 .cmp(&rhs.date)
@@ -33,8 +50,35 @@ impl Diary {
             let timestamp_diff = (self_entry.date - added_entry.date).abs();
             let same_day = timestamp_diff < TimeDelta::days(1);
 
-            let same_note = Self::simplify_note_for_comparing(self_entry)
-                == Self::simplify_note_for_comparing(added_entry);
+            let same_note = match comparison_policy {
+                DayEntryComparisonPolicy::Strict => self_entry.note == added_entry.note,
+                DayEntryComparisonPolicy::Relaxed | DayEntryComparisonPolicy::Contained => {
+                    let self_ = Self::simplify_note_for_comparing(self_entry);
+                    let other_ = Self::simplify_note_for_comparing(added_entry);
+
+                    if self_ == other_ {
+                        true
+                    } else if comparison_policy == DayEntryComparisonPolicy::Contained
+                        && self_.len() > MIN_LENGTH_FOR_CONTAINED_COMPARISON
+                        && other_.len() > MIN_LENGTH_FOR_CONTAINED_COMPARISON
+                        && (self_.contains(&other_) || other_.contains(&self_))
+                    {
+                        println!(
+                            "Contained note detected, keeping the longer one:\n---\n{}\n---\n{}\n---",
+                            self_entry.note, added_entry.note
+                        );
+
+                        // keep the longer note
+                        if self_.len() < other_.len() {
+                            self_entry.note = added_entry.note.clone();
+                        }
+
+                        true
+                    } else {
+                        false
+                    }
+                }
+            };
 
             if same_day && same_note {
                 // We keep the one from the reference file
@@ -61,8 +105,12 @@ impl Diary {
 
 /// Merges two daylio files into one.
 /// We keep everything from the first file, and add the new entries from the other files
-pub fn merge(mut reference: Diary, mut mergee: Diary) -> color_eyre::Result<Diary> {
-    reference.add_unique_entries(&mut mergee);
+pub fn merge(
+    mut reference: Diary,
+    mut mergee: Diary,
+    comparison_policy: DayEntryComparisonPolicy,
+) -> color_eyre::Result<Diary> {
+    reference.add_unique_entries(&mut mergee, comparison_policy);
 
     Ok(reference)
 }
