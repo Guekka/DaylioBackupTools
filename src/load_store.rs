@@ -56,6 +56,8 @@ pub fn load_diary(path: &Path) -> Result<Diary> {
 }
 
 pub fn store_daylio_backup(daylio: Daylio, path: &Path) -> Result<()> {
+    daylio.check_soundness()?;
+
     let file = File::create(path)?;
 
     let mut archive = ZipWriter::new(file);
