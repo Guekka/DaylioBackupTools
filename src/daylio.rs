@@ -11,9 +11,9 @@ pub const NUMBER_OF_PREDEFINED_MOODS: u64 = 5;
 pub struct Daylio {
     pub version: i64,
     pub is_reminder_on: bool,
-    pub custom_moods: Vec<CustomMood>,
-    pub tags: Vec<Tag>,
-    pub day_entries: Vec<DayEntry>,
+    pub custom_moods: Vec<DaylioCustomMood>,
+    pub tags: Vec<DaylioTag>,
+    pub day_entries: Vec<DaylioDayEntry>,
     pub achievements: Vec<Achievement>,
     pub days_in_row_longest_chain: i64,
     pub goals: Vec<Value>,
@@ -58,7 +58,11 @@ impl Daylio {
         Ok(())
     }
 
-    fn change_mood_id(day_entries: &mut [DayEntry], mood: &mut CustomMood, new_id: i64) {
+    fn change_mood_id(
+        day_entries: &mut [DaylioDayEntry],
+        mood: &mut DaylioCustomMood,
+        new_id: i64,
+    ) {
         for entry in day_entries {
             if entry.mood == mood.id {
                 entry.mood = new_id;
@@ -145,7 +149,7 @@ pub fn daylio_predefined_mood_name(id: i64) -> Option<&'static str> {
 impl Default for Daylio {
     fn default() -> Self {
         let moods = (1..=NUMBER_OF_PREDEFINED_MOODS as i64)
-            .map(|i| CustomMood {
+            .map(|i| DaylioCustomMood {
                 id: i,
                 icon_id: i,
                 predefined_name_id: i,
@@ -244,7 +248,7 @@ impl Default for Daylio {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CustomMood {
+pub struct DaylioCustomMood {
     pub id: i64,
     #[serde(rename = "custom_name")]
     pub custom_name: String,
@@ -262,7 +266,7 @@ pub struct CustomMood {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Tag {
+pub struct DaylioTag {
     pub id: i64,
     pub name: String,
     pub created_at: i64,
@@ -275,7 +279,7 @@ pub struct Tag {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DayEntry {
+pub struct DaylioDayEntry {
     pub id: i64,
     pub minute: i64,
     pub hour: i64,

@@ -1,8 +1,13 @@
 #[cfg(test)]
 mod tests {
+    use chrono::DateTime;
     use color_eyre::Result;
+    use std::collections::HashSet;
 
-    use daylio_tools::{CustomMood, DayEntry, Daylio, Tag, load_daylio_backup, merge};
+    use daylio_tools::{
+        DayEntry, Daylio, DaylioCustomMood, DaylioDayEntry, DaylioTag, Diary, Mood,
+        load_daylio_backup, merge,
+    };
     use similar_asserts::assert_eq;
 
     #[test]
@@ -10,7 +15,7 @@ mod tests {
         // duplicated pre-defined mood
         let custom_moods = vec![
             // duplicated pre-defined mood
-            CustomMood {
+            DaylioCustomMood {
                 id: 2,
                 custom_name: "Predefined".to_owned(),
                 icon_id: 2,
@@ -21,7 +26,7 @@ mod tests {
                 created_at: 1,
             },
             // next 2: everything differs except name
-            CustomMood {
+            DaylioCustomMood {
                 id: 3,
                 custom_name: "Mood".to_owned(),
                 icon_id: 3,
@@ -31,7 +36,7 @@ mod tests {
                 mood_group_order: 2,
                 created_at: 2,
             },
-            CustomMood {
+            DaylioCustomMood {
                 id: 4,
                 custom_name: "Mood".to_owned(),
                 mood_group_id: 4,
@@ -42,7 +47,7 @@ mod tests {
                 created_at: 14582,
             },
             // this one is unique
-            CustomMood {
+            DaylioCustomMood {
                 id: 5,
                 custom_name: "Unique".to_owned(),
                 icon_id: 1,
@@ -54,7 +59,7 @@ mod tests {
             },
         ];
 
-        let duplicate_tag = Tag {
+        let duplicate_tag = DaylioTag {
             id: 2,
             name: "Duplicate name".to_owned(),
             created_at: 1278,
@@ -63,7 +68,7 @@ mod tests {
             state: 1,
             id_tag_group: 1,
         };
-        let unique_tag = Tag {
+        let unique_tag = DaylioTag {
             id: 3,
             name: "Unique".to_owned(),
             created_at: 1278,
@@ -77,7 +82,7 @@ mod tests {
         // title is separated in one, text in the other
         // date is slightly different
         // same mood, same tags
-        let original_entry = DayEntry {
+        let original_entry = DaylioDayEntry {
             id: 2,
             minute: 20,
             hour: 11, // <-- different
@@ -93,7 +98,7 @@ mod tests {
             assets: vec![],
         };
 
-        let pdf_entry = DayEntry {
+        let pdf_entry = DaylioDayEntry {
             id: 1,
             minute: 20,
             hour: 10,
@@ -109,7 +114,7 @@ mod tests {
             assets: vec![],
         };
 
-        let original_entry2 = DayEntry {
+        let original_entry2 = DaylioDayEntry {
             id: 1,
             minute: 1,
             hour: 11,
@@ -125,7 +130,7 @@ mod tests {
             assets: vec![],
         };
 
-        let pdf_entry2 = DayEntry {
+        let pdf_entry2 = DaylioDayEntry {
             id: 12,
             minute: 1,
             hour: 11,
@@ -156,23 +161,40 @@ mod tests {
         pdf_daylio.sanitize(); // add default moods
 
         // remove duplicates
-        let merged = merge(original_daylio, pdf_daylio).unwrap();
+        let merged = merge(Diary::from(original_daylio), Diary::from(pdf_daylio)).unwrap();
 
         // check that there are no duplicates
-        assert_eq!(merged.custom_moods.len(), 7);
+        assert_eq!(merged.moods.len(), 5);
         assert_eq!(merged.tags.len(), 2);
 
         // the entries from left are preserved
         assert_eq!(merged.day_entries.len(), 2);
-        assert_eq!(merged.day_entries[0], original_entry2);
-        assert_eq!(merged.day_entries[1], original_entry);
+        let expected_entry1 = DayEntry {
+            date: DateTime::from_timestamp_millis(original_entry.datetime)
+                .unwrap()
+                .naive_utc(),
+            mood: Some(Mood::new("super")),
+            tags: HashSet::new(),
+            note: "Note title\n\nThis is a note with a line break\n".to_owned(),
+        };
+        let expected_entry2 = DayEntry {
+            date: DateTime::from_timestamp_millis(original_entry2.datetime)
+                .unwrap()
+                .naive_utc(),
+            mood: Some(Mood::new("super")),
+            tags: HashSet::new(),
+            note: original_entry2.note,
+        };
+
+        assert_eq!(merged.day_entries[0], expected_entry1);
+        assert_eq!(merged.day_entries[1], expected_entry2);
     }
 
     fn base_input() -> Daylio {
         Daylio {
             version: 15,
             custom_moods: vec![
-                CustomMood {
+                DaylioCustomMood {
                     id: 1,
                     custom_name: "".to_owned(),
                     mood_group_id: 1,
@@ -182,7 +204,7 @@ mod tests {
                     state: 0,
                     created_at: 1651129353725,
                 },
-                CustomMood {
+                DaylioCustomMood {
                     id: 2,
                     custom_name: "".to_owned(),
                     mood_group_id: 2,
@@ -192,7 +214,7 @@ mod tests {
                     state: 0,
                     created_at: 1651129353725,
                 },
-                CustomMood {
+                DaylioCustomMood {
                     id: 3,
                     custom_name: "".to_owned(),
                     mood_group_id: 3,
@@ -202,7 +224,7 @@ mod tests {
                     state: 0,
                     created_at: 1651129353725,
                 },
-                CustomMood {
+                DaylioCustomMood {
                     id: 4,
                     custom_name: "".to_owned(),
                     mood_group_id: 4,
@@ -212,7 +234,7 @@ mod tests {
                     state: 0,
                     created_at: 1651129353725,
                 },
-                CustomMood {
+                DaylioCustomMood {
                     id: 5,
                     custom_name: "".to_owned(),
                     mood_group_id: 5,
@@ -231,7 +253,7 @@ mod tests {
         let mut input = base_input();
         input.custom_moods.insert(
             1,
-            CustomMood {
+            DaylioCustomMood {
                 id: 6,
                 custom_name: "custom".to_owned(),
                 mood_group_id: 1,
@@ -244,7 +266,7 @@ mod tests {
         );
 
         input.tags = vec![
-            Tag {
+            DaylioTag {
                 id: 24,
                 name: "tag1".to_owned(),
                 created_at: 1651129353707,
@@ -253,7 +275,7 @@ mod tests {
                 state: 0,
                 id_tag_group: 1,
             },
-            Tag {
+            DaylioTag {
                 id: 28,
                 name: "tag2".to_owned(),
                 created_at: 1651129353711,
@@ -265,7 +287,7 @@ mod tests {
         ];
 
         input.day_entries = vec![
-            DayEntry {
+            DaylioDayEntry {
                 id: 1,
                 minute: 0,
                 hour: 1,
@@ -280,7 +302,7 @@ mod tests {
                 tags: vec![24],
                 assets: vec![],
             },
-            DayEntry {
+            DaylioDayEntry {
                 id: 2,
                 minute: 0,
                 hour: 20,
@@ -295,7 +317,7 @@ mod tests {
                 tags: vec![28],
                 assets: vec![],
             },
-            DayEntry {
+            DaylioDayEntry {
                 id: 3,
                 minute: 45,
                 hour: 22,
@@ -326,7 +348,7 @@ mod tests {
         println!("input1: {:#?}", input1.custom_moods);
 
         expected.tags = vec![
-            Tag {
+            DaylioTag {
                 id: 1,
                 name: "tag1".to_owned(),
                 created_at: 1651129353707,
@@ -335,7 +357,7 @@ mod tests {
                 state: 0,
                 id_tag_group: 1,
             },
-            Tag {
+            DaylioTag {
                 id: 2,
                 name: "tag2".to_owned(),
                 created_at: 1651129353711,
@@ -358,9 +380,9 @@ mod tests {
                 .collect();
         }
 
-        let merged = merge(input1, input2)?;
+        let merged = merge(Diary::from(input1), Diary::from(input2))?;
 
-        assert_eq!(merged, expected);
+        assert_eq!(merged, Diary::from(expected));
 
         Ok(())
     }
@@ -373,9 +395,9 @@ mod tests {
 
         let expected = load_daylio_backup("tests/data/merged.daylio".as_ref())?;
 
-        let merged = merge(input1, input2)?;
+        let merged = merge(Diary::from(input1), Diary::from(input2))?;
 
-        assert_eq!(merged, expected);
+        assert_eq!(merged, Diary::from(expected));
 
         Ok(())
     }

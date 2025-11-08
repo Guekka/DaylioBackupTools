@@ -3,7 +3,6 @@
 
 use crate::models::{DayEntry, Diary};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use color_eyre::Report;
 use color_eyre::eyre::Result;
 use regex::Regex;
 use std::collections::HashSet;
@@ -191,10 +190,10 @@ whitespace
 "#;
 
         // When
-        let parsed = parse_md(INPUT)?;
+        let parsed = parse_md(INPUT);
 
         // Then
-        let expected: Diary = Diary {
+        let expected = Diary {
             moods: vec![],
             day_entries: vec![
                 DayEntry {
@@ -203,7 +202,7 @@ whitespace
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
                     mood: None,
-                    tags: vec![],
+                    tags: HashSet::new(),
                     note: "Full date".to_string(),
                 },
                 DayEntry {
@@ -212,7 +211,7 @@ whitespace
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
                     mood: None,
-                    tags: vec![],
+                    tags: HashSet::new(),
                     note: "No date, deduced from previous".to_string(),
                 },
                 DayEntry {
@@ -221,10 +220,11 @@ whitespace
                         .and_hms_opt(10, 0, 0)
                         .unwrap(),
                     mood: None,
-                    tags: vec![],
+                    tags: HashSet::new(),
                     note: "Make sure\n\nwe keep\n\nwhitespace".to_string(),
                 },
             ],
+            tags: Vec::new(),
         };
 
         assert_eq!(parsed, expected);

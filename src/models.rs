@@ -1,23 +1,25 @@
 pub use crate::Daylio;
 use crate::{
-    CustomMood, NUMBER_OF_PREDEFINED_MOODS, daylio, daylio_predefined_mood_idx,
+    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS, daylio, daylio_predefined_mood_idx,
     daylio_predefined_mood_name,
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-const NO_MOOD: LazyLock<CustomMood, fn() -> CustomMood> = LazyLock::new(|| CustomMood {
-    id: 999_999,
-    custom_name: String::from("Inconnu"),
-    mood_group_id: 3,
-    mood_group_order: 100,
-    icon_id: 3,
-    predefined_name_id: 0,
-    state: 0,
-    created_at: 0,
-});
+const NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
+    LazyLock::new(|| DaylioCustomMood {
+        id: 999_999,
+        custom_name: String::from("Inconnu"),
+        mood_group_id: 3,
+        mood_group_order: 100,
+        icon_id: 3,
+        predefined_name_id: 0,
+        state: 0,
+        created_at: 0,
+    });
 
 #[derive(Debug, PartialEq, Clone, Default, Eq)]
 pub struct DayEntry {
@@ -25,6 +27,18 @@ pub struct DayEntry {
     pub mood: Option<Mood>,
     pub tags: HashSet<Tag>,
     pub note: String,
+}
+
+impl PartialOrd<Self> for DayEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.date.cmp(&other.date))
+    }
+}
+
+impl Ord for DayEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.date.cmp(&other.date)
+    }
 }
 
 #[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
@@ -53,29 +67,57 @@ impl Mood {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
 pub struct TagDetail {
     pub name: String,
     pub icon_id: Option<i64>,
 }
 
-#[derive(Debug, Default, Clone)]
+impl Ord for TagDetail {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
 pub struct MoodDetail {
     pub name: String,
     pub icon_id: Option<i64>,
     pub group: u8,
 }
 
-#[derive(Debug, Default, Clone)]
+impl Ord for MoodDetail {
+    // first sort by group, then by icon_id, then by name
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.group.cmp(&other.group) {
+            Ordering::Equal => match self.icon_id.cmp(&other.icon_id) {
+                Ordering::Equal => self.name.cmp(&other.name),
+                other => other,
+            },
+            other => other,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Diary {
     pub day_entries: Vec<DayEntry>,
     pub moods: Vec<MoodDetail>,
     pub tags: Vec<TagDetail>,
 }
 
+impl Diary {
+    pub fn sorted(mut self) -> Self {
+        self.day_entries.sort();
+        self.moods.sort();
+        self.tags.sort();
+        self
+    }
+}
+
 impl From<Daylio> for Diary {
     fn from(daylio: Daylio) -> Self {
-        let moods = daylio
+        let moods: Vec<MoodDetail> = daylio
             .custom_moods
             .iter()
             .map(|mood| {
@@ -94,7 +136,7 @@ impl From<Daylio> for Diary {
             })
             .collect();
 
-        let tags = daylio
+        let tags: Vec<TagDetail> = daylio
             .tags
             .iter()
             .map(|tag| TagDetail {
@@ -115,14 +157,20 @@ impl From<Daylio> for Diary {
             .map(|tag| (tag.id, tag))
             .collect::<HashMap<_, _>>();
 
-        let day_entries = daylio
+        let day_entries: Vec<DayEntry> = daylio
             .day_entries
             .iter()
             .map(|entry| {
                 let predefined_name = daylio_predefined_mood_name(entry.mood);
                 let mood = {
                     let name = mood_map.get(&entry.mood).unwrap();
-                    Mood::new(&name.custom_name)
+                    if let Some(predefined_name) = predefined_name
+                        && name.custom_name.is_empty()
+                    {
+                        Mood::new(predefined_name)
+                    } else {
+                        Mood::new(name.custom_name.as_str())
+                    }
                 };
 
                 DayEntry {
@@ -138,7 +186,11 @@ impl From<Daylio> for Diary {
                             Tag::new(&tag.name)
                         })
                         .collect(),
-                    note: entry.note_title.clone() + &entry.note,
+                    note: if entry.note_title.is_empty() {
+                        entry.note.clone()
+                    } else {
+                        format!("{}\n\n{}", &entry.note_title, &entry.note)
+                    },
                 }
             })
             .collect();
@@ -148,13 +200,14 @@ impl From<Daylio> for Diary {
             moods,
             tags,
         }
+        .sorted()
     }
 }
 
 impl TryFrom<Diary> for Daylio {
     type Error = eyre::Error;
     fn try_from(diary: Diary) -> Result<Self, Self::Error> {
-        let tags: Vec<daylio::Tag> = diary
+        let tags: Vec<daylio::DaylioTag> = diary
             .day_entries
             .iter()
             .flat_map(|entry| entry.tags.iter())
@@ -164,7 +217,7 @@ impl TryFrom<Diary> for Daylio {
             .map(|(i, tag)| {
                 let detail = diary.tags.iter().find(|t| t.name == tag.name);
 
-                daylio::Tag {
+                daylio::DaylioTag {
                     id: i as i64,
                     name: tag.name.clone(),
                     created_at: 0,
@@ -176,7 +229,7 @@ impl TryFrom<Diary> for Daylio {
             })
             .collect();
 
-        let moods: Vec<daylio::CustomMood> = diary
+        let moods: Vec<daylio::DaylioCustomMood> = diary
             .day_entries
             .iter()
             .filter_map(|entry| entry.mood.as_ref())
@@ -191,7 +244,7 @@ impl TryFrom<Diary> for Daylio {
                     .expect("Mood not found in diary");
 
                 let predefined_name_id = daylio_predefined_mood_idx(&mood.name);
-                daylio::CustomMood {
+                daylio::DaylioCustomMood {
                     id: predefined_name_id
                         .map_or(i as i64 + NUMBER_OF_PREDEFINED_MOODS as i64, |i| i as i64),
                     custom_name: if predefined_name_id.is_some() {
@@ -213,11 +266,11 @@ impl TryFrom<Diary> for Daylio {
             .chain(std::iter::once(NO_MOOD.clone()))
             .collect();
 
-        let entries: Vec<daylio::DayEntry> = diary
+        let entries: Vec<daylio::DaylioDayEntry> = diary
             .day_entries
             .into_iter()
             .enumerate()
-            .map(|(i, entry)| daylio::DayEntry {
+            .map(|(i, entry)| daylio::DaylioDayEntry {
                 id: i as i64,
                 minute: i64::from(entry.date.minute()),
                 hour: i64::from(entry.date.hour()),

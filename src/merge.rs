@@ -1,8 +1,6 @@
 use crate::models::{DayEntry, Diary};
 use chrono::TimeDelta;
 
-const ANALYZED: &str = r"Fête pour l'anniversaire de Thomas Grazi";
-
 impl Diary {
     /// Aggressive simplification of the note: only keep alphanumeric characters
     fn simplify_note_for_comparing(entry: &DayEntry) -> String {
@@ -31,10 +29,6 @@ impl Diary {
         while left_index < self.day_entries.len() && right_index < mergee.day_entries.len() {
             let self_entry = &mut self.day_entries[left_index];
             let added_entry = &mut mergee.day_entries[right_index];
-
-            if self_entry.note.starts_with(ANALYZED) && added_entry.note.starts_with(ANALYZED) {
-                dbg!(&self_entry, &added_entry);
-            }
 
             let timestamp_diff = (self_entry.date - added_entry.date).abs();
             let same_day = timestamp_diff < TimeDelta::days(1);
@@ -66,7 +60,6 @@ impl Diary {
 }
 
 /// Merges two daylio files into one.
-/// We assume the files have version 15, but this is not checked.
 /// We keep everything from the first file, and add the new entries from the other files
 pub fn merge(mut reference: Diary, mut mergee: Diary) -> color_eyre::Result<Diary> {
     reference.add_unique_entries(&mut mergee);

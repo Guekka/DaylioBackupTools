@@ -7,6 +7,7 @@
 pub use daylio::*;
 pub use load_store::*;
 pub use merge::merge;
+pub use models::*;
 
 mod analyze_pdf;
 mod daylio;

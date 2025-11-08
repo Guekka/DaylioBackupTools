@@ -172,8 +172,7 @@ fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<TagDetail>, Vec<MoodDetail>)
 
     let mut moods = moods
         .iter()
-        .enumerate()
-        .map(|(i, stat)| MoodDetail {
+        .map(|stat| MoodDetail {
             name: stat.name.clone(),
             icon_id: None,
             group: 0,
@@ -302,7 +301,7 @@ impl TryFrom<ParsedPdf> for Diary {
             .map(|entry| extract_tags(entry, &tags))
             .collect::<Vec<_>>();
 
-        let day_entries = parsed
+        let day_entries: Vec<DayEntry> = parsed
             .day_entries
             .into_iter()
             .enumerate()
@@ -332,7 +331,8 @@ impl TryFrom<ParsedPdf> for Diary {
             day_entries,
             moods,
             tags,
-        })
+        }
+        .sorted())
     }
 }
 
@@ -414,21 +414,21 @@ Preserve the empty line, but not the final one
         };
 
         let tags = vec![
-            Tag {
+            TagDetail {
                 name: "some tag".to_owned(),
-                icon: None,
+                icon_id: None,
             },
-            Tag {
+            TagDetail {
                 name: "another tag".to_owned(),
-                icon: None,
+                icon_id: None,
             },
-            Tag {
+            TagDetail {
                 name: "yet another tag".to_owned(),
-                icon: None,
+                icon_id: None,
             },
-            Tag {
+            TagDetail {
                 name: "A tag, on another line".to_owned(),
-                icon: None,
+                icon_id: None,
             },
         ];
         let (note, tags) = extract_tags(&entry, &tags);
@@ -494,39 +494,55 @@ Preserve the empty line, but not the final one
             day_entries: vec![
                 DayEntry {
                     date: parse_date(&parsed.day_entries[0]).unwrap(),
-                    mood: Some(1),
-                    tags: vec![],
+                    mood: Some(Mood::new("rad")),
+                    tags: HashSet::new(),
                     note: "This is a note".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    mood: Some(1),
-                    tags: vec![],
+                    mood: Some(Mood::new("rad")),
+                    tags: HashSet::new(),
                     note: "This is a note²".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
-                    mood: Some(2),
-                    tags: vec![
+                    mood: Some(Mood::new("good")),
+                    tags: HashSet::from([
+                        Tag::new("yet another tag"),
                         Tag::new("another tag"),
                         Tag::new("some tag"),
-                        Tag::new("yet another tag"),
-                    ],
+                    ]),
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
             moods: vec![
-                Mood {
-                    id: 1,
-                    name: "rad".to_owned(),
-                    group: 1,
-                    icon: None,
-                },
-                Mood {
-                    id: 2,
+                MoodDetail {
                     name: "good".to_owned(),
                     group: 2,
-                    icon: None,
+                    icon_id: None,
+                },
+                MoodDetail {
+                    name: "rad".to_owned(),
+                    group: 1,
+                    icon_id: None,
+                },
+            ],
+            tags: vec![
+                TagDetail {
+                    name: "Tag that won't be matched".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "another tag".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "some tag".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "yet another tag".to_owned(),
+                    icon_id: None,
                 },
             ],
         };
