@@ -5,6 +5,7 @@ use crate::{
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
+use serde_derive::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -21,7 +22,7 @@ const NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
         created_at: 0,
     });
 
-#[derive(Debug, PartialEq, Clone, Default, Eq)]
+#[derive(Debug, PartialEq, Clone, Default, Eq, Serialize, Deserialize)]
 pub struct DayEntry {
     pub date: NaiveDateTime,
     pub moods: HashSet<Mood>,
@@ -41,8 +42,10 @@ impl Ord for DayEntry {
     }
 }
 
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Tag {
+    #[serde(rename = "tag")]
     pub name: String,
 }
 
@@ -54,8 +57,10 @@ impl Tag {
     }
 }
 
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Ord, PartialOrd)]
+#[derive(Eq, Hash, Debug, PartialEq, Clone, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Mood {
+    #[serde(rename = "mood")]
     pub name: String,
 }
 
@@ -67,7 +72,7 @@ impl Mood {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct TagDetail {
     pub name: String,
     pub icon_id: Option<i64>,
@@ -79,7 +84,7 @@ impl Ord for TagDetail {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct MoodDetail {
     pub name: String,
     pub icon_id: Option<i64>,
@@ -99,7 +104,7 @@ impl Ord for MoodDetail {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Diary {
     pub day_entries: Vec<DayEntry>,
     pub moods: Vec<MoodDetail>,
