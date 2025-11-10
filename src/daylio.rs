@@ -20,7 +20,7 @@ pub struct Daylio {
     pub prefs: Vec<Pref>,
     #[serde(rename = "tag_groups")]
     pub tag_groups: Vec<TagGroup>,
-    pub metadata: Metadata,
+    pub metadata: DaylioMetadata,
     pub mood_icons_pack_id: i64,
     pub preferred_mood_icons_ids_for_mood_ids_for_icons_pack: Value,
     pub assets: Vec<Value>,
@@ -225,7 +225,7 @@ impl Default for Daylio {
                 is_expanded: true,
                 order: 1,
             }],
-            metadata: Metadata::default(),
+            metadata: DaylioMetadata::default(),
             mood_icons_pack_id: 1,
             preferred_mood_icons_ids_for_mood_ids_for_icons_pack: serde_json::json!(
                 {
@@ -852,7 +852,7 @@ pub struct TagGroup {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Metadata {
+pub struct DaylioMetadata {
     #[serde(rename = "number_of_entries")]
     pub number_of_entries: i64,
     #[serde(rename = "created_at")]
@@ -868,9 +868,9 @@ pub struct Metadata {
     pub photos_size: i64,
 }
 
-impl Default for Metadata {
+impl Default for DaylioMetadata {
     fn default() -> Self {
-        Metadata {
+        DaylioMetadata {
             number_of_entries: 0,
             created_at: 0,
             is_auto_backup: false,

@@ -144,7 +144,7 @@ fn update_mood_category(moods: &mut [MoodDetail]) {
         if let Some(idx) = daylio_predefined_mood_idx(&mood.name) {
             prev_id = Some(idx);
         }
-        mood.group = u8::try_from(prev_id.unwrap_or(1)).unwrap();
+        mood.wellbeing_value = u64::try_from(prev_id.unwrap_or(1)).unwrap();
     }
 }
 
@@ -175,7 +175,8 @@ fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<TagDetail>, Vec<MoodDetail>)
         .map(|stat| MoodDetail {
             name: stat.name.clone(),
             icon_id: None,
-            group: 0,
+            wellbeing_value: 0,
+            category: None,
         })
         .collect::<Vec<_>>();
 
@@ -518,13 +519,15 @@ Preserve the empty line, but not the final one
             moods: vec![
                 MoodDetail {
                     name: "good".to_owned(),
-                    group: 2,
+                    wellbeing_value: 2,
                     icon_id: None,
+                    category: None,
                 },
                 MoodDetail {
                     name: "rad".to_owned(),
-                    group: 1,
+                    wellbeing_value: 1,
                     icon_id: None,
+                    category: None,
                 },
             ],
             tags: vec![

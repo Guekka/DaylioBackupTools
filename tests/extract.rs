@@ -4,8 +4,8 @@ mod tests {
     use similar_asserts::assert_eq;
 
     use daylio_tools::{
-        Daylio, DaylioCustomMood, DaylioDayEntry, DaylioTag, Diary, Metadata, load_daylio_backup,
-        load_daylio_pdf,
+        Daylio, DaylioCustomMood, DaylioDayEntry, DaylioMetadata, DaylioTag, Diary,
+        load_daylio_backup, load_daylio_pdf,
     };
 
     #[test]
@@ -248,7 +248,7 @@ mod tests {
                     assets: vec![],
                 },
             ],
-            metadata: Metadata {
+            metadata: DaylioMetadata {
                 number_of_entries: 5,
                 ..Default::default()
             },
@@ -263,6 +263,8 @@ mod tests {
         }
         for mood in &mut expected.moods {
             mood.icon_id = None; // icon ids are not stored in the PDF
+            // restore expected wellbeing values
+            mood.wellbeing_value = mood.wellbeing_value / 100;
         }
 
         expected

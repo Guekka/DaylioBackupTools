@@ -1,7 +1,7 @@
 pub use crate::Daylio;
 use crate::{
-    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS, daylio, daylio_predefined_mood_idx,
-    daylio_predefined_mood_name,
+    daylio, daylio_predefined_mood_idx, daylio_predefined_mood_name,
+    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS,
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
@@ -88,19 +88,15 @@ impl Ord for TagDetail {
 pub struct MoodDetail {
     pub name: String,
     pub icon_id: Option<i64>,
-    pub group: u8,
+    pub wellbeing_value: u64,
+    pub category: Option<String>,
 }
 
 impl Ord for MoodDetail {
-    // first sort by group, then by icon_id, then by name
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.group.cmp(&other.group) {
-            Ordering::Equal => match self.icon_id.cmp(&other.icon_id) {
-                Ordering::Equal => self.name.cmp(&other.name),
-                other => other,
-            },
-            other => other,
-        }
+        self.wellbeing_value
+            .cmp(&other.wellbeing_value)
+            .then(self.name.cmp(&other.name))
     }
 }
 
@@ -133,10 +129,15 @@ impl From<Daylio> for Diary {
                         .unwrap()
                         .into()
                 };
+
+                // This is obviously lossy, but we don't have more information in Daylio format
+                let wellbeing_value = (mood.mood_group_id * 100 + mood.mood_group_order) as u64;
+
                 MoodDetail {
                     name,
                     icon_id: Some(mood.icon_id),
-                    group: u8::try_from(mood.mood_group_id).unwrap(),
+                    wellbeing_value,
+                    category: None,
                 }
             })
             .collect();
@@ -234,6 +235,13 @@ impl TryFrom<Diary> for Daylio {
             })
             .collect();
 
+        let max_mood_value = diary
+            .moods
+            .iter()
+            .map(|m| m.wellbeing_value)
+            .max()
+            .unwrap_or(1);
+
         let all_moods: Vec<DaylioCustomMood> = diary
             .day_entries
             .iter()
@@ -249,6 +257,14 @@ impl TryFrom<Diary> for Daylio {
                     .expect("Mood not found in diary");
 
                 let predefined_name_id = daylio_predefined_mood_idx(&mood.name);
+
+                // We want to group into 5 groups (1 to 5), best mood being 5
+                let group_id = mood_detail
+                    .wellbeing_value
+                    .saturating_mul(5)
+                    .checked_div(max_mood_value)
+                    .unwrap_or(0);
+
                 DaylioCustomMood {
                     id: predefined_name_id
                         .map_or(i as i64 + NUMBER_OF_PREDEFINED_MOODS as i64, |i| i as i64),
@@ -257,12 +273,12 @@ impl TryFrom<Diary> for Daylio {
                     } else {
                         mood.name.clone()
                     },
-                    mood_group_id: i64::from(mood_detail.group),
+                    mood_group_id: group_id as i64,
                     mood_group_order: 0,
                     icon_id: mood_detail
                         .icon_id
                         .or(predefined_name_id.map(|i| i as i64))
-                        .unwrap_or(i64::from(mood_detail.group)),
+                        .unwrap_or(i64::try_from(group_id).unwrap()),
                     predefined_name_id: predefined_name_id.map_or(-1, |x| x as i64),
                     state: 0,
                     created_at: 0,
@@ -312,7 +328,7 @@ impl TryFrom<Diary> for Daylio {
             })
             .collect();
 
-        let metadata = daylio::Metadata {
+        let metadata = daylio::DaylioMetadata {
             number_of_entries: entries.len() as i64,
             ..Default::default()
         };
