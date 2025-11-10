@@ -16,3 +16,6 @@ mod merge;
 mod models;
 mod parse_md;
 mod parse_pdf;
+
+pub mod dashboard;
+pub mod statistics;
