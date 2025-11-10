@@ -24,7 +24,7 @@ const NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
 #[derive(Debug, PartialEq, Clone, Default, Eq)]
 pub struct DayEntry {
     pub date: NaiveDateTime,
-    pub mood: Option<Mood>,
+    pub moods: HashSet<Mood>,
     pub tags: HashSet<Tag>,
     pub note: String,
 }
@@ -177,7 +177,7 @@ impl From<Daylio> for Diary {
                     date: DateTime::from_timestamp_millis(entry.datetime)
                         .unwrap()
                         .naive_utc(),
-                    mood: Some(mood),
+                    moods: HashSet::from([mood]),
                     tags: entry
                         .tags
                         .iter()
@@ -229,10 +229,10 @@ impl TryFrom<Diary> for Daylio {
             })
             .collect();
 
-        let moods: Vec<daylio::DaylioCustomMood> = diary
+        let all_moods: Vec<DaylioCustomMood> = diary
             .day_entries
             .iter()
-            .filter_map(|entry| entry.mood.as_ref())
+            .flat_map(|entry| entry.moods.iter())
             .collect::<HashSet<_>>()
             .into_iter()
             .enumerate()
@@ -244,7 +244,7 @@ impl TryFrom<Diary> for Daylio {
                     .expect("Mood not found in diary");
 
                 let predefined_name_id = daylio_predefined_mood_idx(&mood.name);
-                daylio::DaylioCustomMood {
+                DaylioCustomMood {
                     id: predefined_name_id
                         .map_or(i as i64 + NUMBER_OF_PREDEFINED_MOODS as i64, |i| i as i64),
                     custom_name: if predefined_name_id.is_some() {
@@ -270,32 +270,40 @@ impl TryFrom<Diary> for Daylio {
             .day_entries
             .into_iter()
             .enumerate()
-            .map(|(i, entry)| daylio::DaylioDayEntry {
-                id: i as i64,
-                minute: i64::from(entry.date.minute()),
-                hour: i64::from(entry.date.hour()),
-                day: i64::from(entry.date.day()),
-                month: i64::from(entry.date.month0()), // month is 0-indexed in Daylio
-                year: i64::from(entry.date.year()),
-                datetime: entry.date.and_utc().timestamp_millis(),
-                time_zone_offset: 0,
-                mood: if let Some(mood) = entry.mood {
-                    moods
+            .flat_map(|(i, entry)| {
+                let entry_moods: Vec<Mood> = entry.moods.into_iter().collect();
+                let main_entry = daylio::DaylioDayEntry {
+                    id: i as i64,
+                    minute: i64::from(entry.date.minute()),
+                    hour: i64::from(entry.date.hour()),
+                    day: i64::from(entry.date.day()),
+                    month: i64::from(entry.date.month0()), // month is 0-indexed in Daylio
+                    year: i64::from(entry.date.year()),
+                    datetime: entry.date.and_utc().timestamp_millis(),
+                    time_zone_offset: 0,
+                    mood: if let Some(mood) = entry_moods.get(0) {
+                        all_moods
+                            .iter()
+                            .find(|m| m.custom_name == mood.name)
+                            .unwrap()
+                            .id
+                    } else {
+                        NO_MOOD.id
+                    },
+                    tags: entry
+                        .tags
                         .iter()
-                        .find(|m| m.custom_name == mood.name)
-                        .unwrap()
-                        .id
-                } else {
-                    NO_MOOD.id
-                },
-                tags: entry
-                    .tags
-                    .iter()
-                    .map(|tag| tags.iter().find(|t| t.name == tag.name).unwrap().id)
-                    .collect(),
-                note: entry.note,
-                note_title: String::new(),
-                assets: vec![],
+                        .map(|tag| tags.iter().find(|t| t.name == tag.name).unwrap().id)
+                        .collect(),
+                    note: entry.note,
+                    note_title: String::new(),
+                    assets: vec![],
+                };
+
+                // TODO: for now, we don't support multiple moods per entry in Daylio
+                // One possible approach would be to create multiple entries for each mood,
+                // but that's a lossy conversion.
+                vec![main_entry]
             })
             .collect();
 
@@ -306,7 +314,7 @@ impl TryFrom<Diary> for Daylio {
 
         let mut daylio = Daylio {
             tags,
-            custom_moods: moods,
+            custom_moods: all_moods,
             day_entries: entries,
             metadata,
             ..Self::default()

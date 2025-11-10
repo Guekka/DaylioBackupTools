@@ -89,12 +89,21 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
 
     for entry in diary.day_entries {
         writeln!(file, "{}", &entry.date.format("[%Y-%m-%d %H:%M]"))?;
-        if let Some(mood) = &entry.mood {
-            writeln!(file, "{{{}}}", mood.name)?;
-        }
+
         writeln!(
             file,
-            "{}",
+            "{{{}}}",
+            entry
+                .moods
+                .iter()
+                .map(|mood| mood.name.clone())
+                .collect::<Vec<_>>()
+                .join(" / ")
+        )?;
+
+        writeln!(
+            file,
+            "#{{{}}}",
             entry
                 .tags
                 .iter()

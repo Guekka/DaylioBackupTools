@@ -320,7 +320,7 @@ impl TryFrom<ParsedPdf> for Diary {
 
                 DayEntry {
                     date,
-                    mood: Some(Mood::new(&entry_mood.name)),
+                    moods: HashSet::from([Mood::new(&entry_mood.name)]),
                     tags: entry_tags,
                     note,
                 }
@@ -494,19 +494,19 @@ Preserve the empty line, but not the final one
             day_entries: vec![
                 DayEntry {
                     date: parse_date(&parsed.day_entries[0]).unwrap(),
-                    mood: Some(Mood::new("rad")),
+                    moods: HashSet::from([Mood::new("rad")]),
                     tags: HashSet::new(),
                     note: "This is a note".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    mood: Some(Mood::new("rad")),
+                    moods: HashSet::from([Mood::new("rad")]),
                     tags: HashSet::new(),
                     note: "This is a note²".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
-                    mood: Some(Mood::new("good")),
+                    moods: HashSet::from([Mood::new("good")]),
                     tags: HashSet::from([
                         Tag::new("yet another tag"),
                         Tag::new("another tag"),

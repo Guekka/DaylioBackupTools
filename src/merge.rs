@@ -33,7 +33,7 @@ impl Diary {
         let sort_by = |lhs: &DayEntry, rhs: &DayEntry| {
             lhs.date
                 .cmp(&rhs.date)
-                .then(lhs.mood.cmp(&rhs.mood))
+                .then(lhs.moods.iter().cmp(rhs.moods.iter()))
                 .then(lhs.tags.iter().cmp(rhs.tags.iter()))
         };
 
