@@ -1,11 +1,11 @@
 pub use crate::Daylio;
 use crate::{
-    daylio, daylio_predefined_mood_idx, daylio_predefined_mood_name,
-    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS,
+    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS, daylio, daylio_predefined_mood_idx,
+    daylio_predefined_mood_name,
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
@@ -21,6 +21,12 @@ const NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
         state: 0,
         created_at: 0,
     });
+
+#[derive(Serialize, Deserialize)]
+pub struct MdMetadata {
+    pub(crate) moods: Vec<MoodDetail>,
+    pub(crate) tags: Vec<TagDetail>,
+}
 
 #[derive(Debug, PartialEq, Clone, Default, Eq, Serialize, Deserialize)]
 pub struct DayEntry {
@@ -75,6 +81,7 @@ impl Mood {
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct TagDetail {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_id: Option<i64>,
 }
 
@@ -87,8 +94,11 @@ impl Ord for TagDetail {
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
 pub struct MoodDetail {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_id: Option<i64>,
-    pub wellbeing_value: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wellbeing_value: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
 }
 
@@ -136,7 +146,7 @@ impl From<Daylio> for Diary {
                 MoodDetail {
                     name,
                     icon_id: Some(mood.icon_id),
-                    wellbeing_value,
+                    wellbeing_value: Some(wellbeing_value),
                     category: None,
                 }
             })
@@ -238,7 +248,7 @@ impl TryFrom<Diary> for Daylio {
         let max_mood_value = diary
             .moods
             .iter()
-            .map(|m| m.wellbeing_value)
+            .flat_map(|m| m.wellbeing_value)
             .max()
             .unwrap_or(1);
 
@@ -261,6 +271,7 @@ impl TryFrom<Diary> for Daylio {
                 // We want to group into 5 groups (1 to 5), best mood being 5
                 let group_id = mood_detail
                     .wellbeing_value
+                    .unwrap_or_default()
                     .saturating_mul(5)
                     .checked_div(max_mood_value)
                     .unwrap_or(0);

@@ -264,7 +264,7 @@ mod tests {
         for mood in &mut expected.moods {
             mood.icon_id = None; // icon ids are not stored in the PDF
             // restore expected wellbeing values
-            mood.wellbeing_value = mood.wellbeing_value / 100;
+            mood.wellbeing_value = Some(mood.wellbeing_value.unwrap() / 100);
         }
 
         expected

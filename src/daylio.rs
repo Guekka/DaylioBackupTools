@@ -1,7 +1,6 @@
 use color_eyre::eyre;
 use core::default::Default;
-use serde_derive::Deserialize;
-use serde_derive::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const NUMBER_OF_PREDEFINED_MOODS: u64 = 5;

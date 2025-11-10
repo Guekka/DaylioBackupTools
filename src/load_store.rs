@@ -9,9 +9,9 @@ use color_eyre::eyre::{ContextCompat, WrapErr, eyre};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
-use crate::Daylio;
 use crate::models::Diary;
 use crate::parse_md::load_md;
+use crate::{Daylio, MdMetadata};
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
     let file = File::open(path)?;
@@ -97,30 +97,40 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
     let mut file = File::create(path)?;
     diary.day_entries.sort_unstable_by_key(|entry| entry.date);
 
+    // YAML header
+    let metadata = MdMetadata {
+        moods: diary.moods.clone(),
+        tags: diary.tags.clone(),
+    };
+    let yaml = serde_yaml::to_string(&metadata)?;
+    writeln!(file, "---")?;
+    writeln!(file, "{}", yaml)?;
+    writeln!(file, "---\n")?;
+
     for entry in diary.day_entries {
         writeln!(file, "{}", &entry.date.format("[%Y-%m-%d %H:%M]"))?;
 
-        writeln!(
-            file,
-            "{{{}}}",
-            entry
-                .moods
-                .iter()
-                .map(|mood| mood.name.clone())
-                .collect::<Vec<_>>()
-                .join(" / ")
-        )?;
+        let moods_str = entry
+            .moods
+            .iter()
+            .map(|mood| mood.name.clone())
+            .collect::<Vec<_>>()
+            .join(" / ");
 
-        writeln!(
-            file,
-            "#{{{}}}",
-            entry
-                .tags
-                .iter()
-                .map(|tag| tag.name.clone())
-                .collect::<Vec<_>>()
-                .join(",")
-        )?;
+        if !moods_str.is_empty() {
+            writeln!(file, "{{{}}}", moods_str)?;
+        }
+
+        let tags_str = entry
+            .tags
+            .iter()
+            .map(|tag| tag.name.clone())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        if !tags_str.is_empty() {
+            writeln!(file, "#{{{}}}", tags_str)?;
+        }
         writeln!(file, "{}\n", entry.note)?;
     }
 

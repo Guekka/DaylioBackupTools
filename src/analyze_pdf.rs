@@ -22,7 +22,7 @@ fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
         date_parts[2]
     } else {
         // 24h clock
-        let hour_int = hour.parse::<u8>().unwrap();
+        let hour_int = hour.parse::<u8>()?;
         if hour_int > 12 {
             hour = (hour_int - 12).to_string();
             "pm"
@@ -144,7 +144,7 @@ fn update_mood_category(moods: &mut [MoodDetail]) {
         if let Some(idx) = daylio_predefined_mood_idx(&mood.name) {
             prev_id = Some(idx);
         }
-        mood.wellbeing_value = u64::try_from(prev_id.unwrap_or(1)).unwrap();
+        mood.wellbeing_value = u64::try_from(prev_id.unwrap_or(1)).ok();
     }
 }
 
@@ -175,7 +175,7 @@ fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<TagDetail>, Vec<MoodDetail>)
         .map(|stat| MoodDetail {
             name: stat.name.clone(),
             icon_id: None,
-            wellbeing_value: 0,
+            wellbeing_value: None,
             category: None,
         })
         .collect::<Vec<_>>();
@@ -519,13 +519,13 @@ Preserve the empty line, but not the final one
             moods: vec![
                 MoodDetail {
                     name: "good".to_owned(),
-                    wellbeing_value: 2,
+                    wellbeing_value: Some(2),
                     icon_id: None,
                     category: None,
                 },
                 MoodDetail {
                     name: "rad".to_owned(),
-                    wellbeing_value: 1,
+                    wellbeing_value: Some(1),
                     icon_id: None,
                     category: None,
                 },
