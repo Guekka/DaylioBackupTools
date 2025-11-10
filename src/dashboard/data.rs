@@ -34,7 +34,7 @@ pub struct AppliedConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "kind")]
+#[serde(tag = "kind", content = "value")]
 pub enum PeriodSelector {
     All,
     LastNDays(u32),

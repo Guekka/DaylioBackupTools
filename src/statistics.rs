@@ -373,6 +373,49 @@ pub fn compute_dashboard_stats(diary: &Diary, cfg: &StatsConfig) -> DashboardSta
         pair_vec.truncate(cfg.max_tag_pairs);
     }
 
+    // Emerging tags: split unique days into halves
+    let mut emerging_vec: Vec<EmergingTag> = Vec::new();
+    let mut unique_days: Vec<NaiveDate> = diary.day_entries.iter().map(|e| e.date.date()).collect();
+    unique_days.sort_unstable();
+    unique_days.dedup();
+    if unique_days.len() >= 2 {
+        let mid_idx = unique_days.len() / 2 - 1; // first half inclusive
+        let mid_day = unique_days[mid_idx];
+        let mut prev_counts: HashMap<String, u32> = HashMap::new();
+        let mut curr_counts: HashMap<String, u32> = HashMap::new();
+        for entry in &diary.day_entries {
+            let d = entry.date.date();
+            if d <= mid_day {
+                for t in &entry.tags {
+                    *prev_counts.entry(t.name.clone()).or_insert(0) += 1;
+                }
+            } else {
+                for t in &entry.tags {
+                    *curr_counts.entry(t.name.clone()).or_insert(0) += 1;
+                }
+            }
+        }
+        for (tag, curr) in curr_counts.iter() {
+            let prev = *prev_counts.get(tag).unwrap_or(&0);
+            if *curr >= cfg.min_samples as u32 {
+                let growth = (*curr as f64) / (prev.max(1) as f64);
+                if growth >= 2.0 {
+                    emerging_vec.push(EmergingTag {
+                        tag: tag.clone(),
+                        growth_factor: growth,
+                        previous_count: prev,
+                        current_count: *curr,
+                    });
+                }
+            }
+        }
+        emerging_vec.sort_by(|a, b| {
+            b.growth_factor
+                .total_cmp(&a.growth_factor)
+                .then(b.current_count.cmp(&a.current_count))
+        });
+    }
+
     // Tag impact
     let scored_entries: Vec<(&DayEntry, f64)> = diary
         .day_entries
@@ -439,7 +482,7 @@ pub fn compute_dashboard_stats(diary: &Diary, cfg: &StatsConfig) -> DashboardSta
         usage: usage_vec,
         pairs: pair_vec,
         impact: impact_vec.clone(),
-        emerging: Vec::new(),
+        emerging: emerging_vec,
     };
     stats.correlations = CorrelationStats {
         tag_impact: impact_vec,
@@ -679,5 +722,51 @@ mod tests {
         assert!(!stats.tags.usage.is_empty());
         assert_eq!(stats.writing.words_daily.len(), 2);
         assert_eq!(stats.streaks.logging_longest, 2);
+    }
+
+    #[test]
+    fn test_emerging_tags() {
+        // Two halves: first half days 01-02, second half days 03-04
+        let moods_details = vec![MoodDetail {
+            name: "M".into(),
+            icon_id: None,
+            wellbeing_value: Some(5),
+            category: None,
+        }];
+        let mut entries = Vec::new();
+        // First half: tag A appears once, tag B appears twice
+        entries.push(make_entry("2025-01-01", &[("M", 5.0)], &["A"], 5));
+        entries.push(make_entry("2025-01-02", &[("M", 5.0)], &["B"], 5));
+        entries.push(make_entry("2025-01-02", &[("M", 5.0)], &["B"], 5));
+        // Second half: tag A appears 3 times (growth 3/1=3), tag B appears 3 times (growth 3/2=1.5)
+        entries.push(make_entry("2025-01-03", &[("M", 5.0)], &["A"], 5));
+        entries.push(make_entry("2025-01-04", &[("M", 5.0)], &["A"], 5));
+        entries.push(make_entry("2025-01-04", &[("M", 5.0)], &["A"], 5));
+        entries.push(make_entry("2025-01-03", &[("M", 5.0)], &["B"], 5));
+        entries.push(make_entry("2025-01-04", &[("M", 5.0)], &["B"], 5));
+        entries.push(make_entry("2025-01-04", &[("M", 5.0)], &["B"], 5));
+        let diary = Diary {
+            day_entries: entries,
+            moods: moods_details,
+            tags: vec![
+                TagDetail {
+                    name: "A".into(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "B".into(),
+                    icon_id: None,
+                },
+            ],
+        };
+        let cfg = StatsConfig {
+            min_samples: 2,
+            word_threshold: 10,
+            max_combos: 50,
+            max_tag_pairs: 50,
+        };
+        let stats = compute_dashboard_stats(&diary, &cfg);
+        assert!(stats.tags.emerging.iter().any(|e| e.tag == "A"));
+        assert!(!stats.tags.emerging.iter().any(|e| e.tag == "B"));
     }
 }

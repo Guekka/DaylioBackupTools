@@ -195,6 +195,88 @@ pub fn generate_dashboard_data(diary: &Diary, cfg: &DashboardConfig) -> Dashboar
     // previous period average
     stats.mood.previous_period_average = previous_period_average(diary, &cfg.period, &stats_cfg);
 
+    // Highlights (simple heuristics)
+    let mut highlights = Vec::new();
+    if let (Some(avg), Some(prev)) = (stats.mood.average, stats.mood.previous_period_average) {
+        let delta = avg - prev;
+        if delta.abs() >= 0.1 {
+            highlights.push(data::Highlight {
+                kind: if delta >= 0.0 {
+                    "mood_up".into()
+                } else {
+                    "mood_down".into()
+                },
+                message: format!(
+                    "Average mood {} by {:.2} vs previous period",
+                    if delta >= 0.0 {
+                        "increased"
+                    } else {
+                        "decreased"
+                    },
+                    delta.abs()
+                ),
+                data: None,
+            });
+        }
+    }
+    // Top tags
+    let top_tags: Vec<_> = stats
+        .tags
+        .usage
+        .iter()
+        .take(3)
+        .map(|u| format!("{} ({})", u.tag, u.count))
+        .collect();
+    if !top_tags.is_empty() {
+        highlights.push(data::Highlight {
+            kind: "top_tags".into(),
+            message: format!("Top tags: {}", top_tags.join(", ")),
+            data: None,
+        });
+    }
+    // Streaks
+    if stats.streaks.logging_longest > 0 || stats.streaks.writing_longest > 0 {
+        highlights.push(data::Highlight {
+            kind: "streaks".into(),
+            message: format!(
+                "Longest logging streak: {} days; writing: {} days",
+                stats.streaks.logging_longest, stats.streaks.writing_longest
+            ),
+            data: None,
+        });
+    }
+    // Tag impact – best and worst
+    if let Some(best) = stats
+        .correlations
+        .tag_impact
+        .iter()
+        .max_by(|a, b| a.delta.total_cmp(&b.delta))
+    {
+        highlights.push(data::Highlight {
+            kind: "tag_positive".into(),
+            message: format!(
+                "Tag '{}' associated with higher mood (Δ {:.2}, n={})",
+                best.tag, best.delta, best.samples
+            ),
+            data: None,
+        });
+    }
+    if let Some(worst) = stats
+        .correlations
+        .tag_impact
+        .iter()
+        .min_by(|a, b| a.delta.total_cmp(&b.delta))
+    {
+        highlights.push(data::Highlight {
+            kind: "tag_negative".into(),
+            message: format!(
+                "Tag '{}' associated with lower mood (Δ {:.2}, n={})",
+                worst.tag, worst.delta, worst.samples
+            ),
+            data: None,
+        });
+    }
+
     // Metadata
     let first_date = filtered.day_entries.iter().map(|e| e.date.date()).min();
     let last_date = filtered.day_entries.iter().map(|e| e.date.date()).max();
@@ -248,7 +330,7 @@ pub fn generate_dashboard_data(diary: &Diary, cfg: &DashboardConfig) -> Dashboar
         tags: tags_lite,
         entries: entries_lite,
         stats,
-        highlights: Vec::new(),
+        highlights,
     }
 }
 
