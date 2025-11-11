@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Diary Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="stylesheet" href="style.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+</head>
+<body>
+<header>
+    <h1>Diary Dashboard</h1>
+    <div id="kpis"></div>
+    <div id="controls"></div>
+</header>
+<main>
+    <section id="highlights"></section>
+    <section id="mood-time"></section>
+    <section id="writing"></section>
+    <section id="mood-distribution"></section>
+    <section id="length-hist"></section>
+    <section id="weekday-mood"></section>
+    <section id="hour-entries"></section>
+    <section id="mood-combos"></section>
+    <section id="tag-usage"></section>
+    <section id="tag-pairs"></section>
+    <section id="emerging-tags"></section>
+    <section id="calendar-heatmap"></section>
+</main>
+<script id="diary-data" type="application/json">__EMBED_DATA__</script>
+<script src="app.js" type="module"></script>
+</body>
+</html>
+

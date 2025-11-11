@@ -1,0 +1,79 @@
+:root {
+    font-family: system-ui, sans-serif;
+    --bg: #fff;
+    --fg: #111;
+    --accent: #346beb
+}
+
+body {
+    margin: 1rem;
+    background: var(--bg);
+    color: var(--fg)
+}
+
+header {
+    margin-bottom: 1.5rem
+}
+
+h1 {
+    margin: 0 0 .75rem
+}
+
+section {
+    margin: 1.75rem 0
+}
+
+#controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin: .5rem 0 1rem
+}
+
+label {
+    font-size: .85rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem
+}
+
+select, input[type=date] {
+    padding: .25rem
+}
+
+#kpis {
+    display: grid;
+    grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap: .5rem
+}
+
+#kpis .kpi {
+    background: #f6f8fa;
+    padding: .5rem .6rem;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    font-size: .8rem
+}
+
+ul {
+    padding-left: 1.1rem
+}
+
+.chart-block {
+    border: 1px solid #e5e5e5;
+    padding: .75rem;
+    border-radius: 8px;
+    background: #fafafa
+}
+
+.chart-block h2 {
+    margin-top: 0;
+    font-size: 1rem
+}
+
+.small-note {
+    font-size: .7rem;
+    color: #555;
+    margin-top: .25rem
+}
+

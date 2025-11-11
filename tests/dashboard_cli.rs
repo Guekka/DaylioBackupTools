@@ -1,5 +1,5 @@
 // filepath: /home/edgar/code/daylio_tools/tests/dashboard_cli.rs
-use assert_cmd::Command;
+use assert_cmd::cargo;
 use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
@@ -11,7 +11,7 @@ fn generate_dashboard_basic() -> color_eyre::Result<()> {
     let out_dir = dir.path().join("dash");
     let input = "localdata/sample.md"; // existing sample diary
 
-    let mut cmd = Command::cargo_bin("daylio_tools")?;
+    let mut cmd = cargo::cargo_bin_cmd!("daylio_tools");
     cmd.arg("generate-dashboard")
         .arg("--input")
         .arg(input)
