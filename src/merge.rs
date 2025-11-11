@@ -1,5 +1,6 @@
 use crate::models::{DayEntry, Diary};
-use chrono::TimeDelta;
+use crate::{Mood, MoodDetail, Tag, TagDetail};
+use chrono::{Datelike, TimeDelta};
 
 /// Policy for comparing day entries
 /// - Strict: note must be exactly the same
@@ -15,6 +16,58 @@ pub enum DayEntryComparisonPolicy {
 const MIN_LENGTH_FOR_CONTAINED_COMPARISON: usize = 20;
 
 impl Diary {
+    fn find_mood_detail(&self, mood: &Mood) -> Option<&MoodDetail> {
+        self.moods.iter().find(|m| m.name == mood.name)
+    }
+
+    fn find_tag_detail(&self, tag: &Tag) -> Option<&TagDetail> {
+        self.tags.iter().find(|t| t.name == tag.name)
+    }
+    fn add_entry(&mut self, index: usize, entry: DayEntry, mergee: &Diary) {
+        let moods_to_add = entry
+            .moods
+            .iter()
+            .filter(|mood| self.find_mood_detail(mood).is_none())
+            .filter_map(|mood| mergee.find_mood_detail(mood))
+            .cloned()
+            .collect::<Vec<MoodDetail>>();
+
+        let tags_to_add = entry
+            .tags
+            .iter()
+            .filter(|tag| self.find_tag_detail(tag).is_none())
+            .filter_map(|tag| mergee.find_tag_detail(tag))
+            .cloned()
+            .collect::<Vec<TagDetail>>();
+
+        if !moods_to_add.is_empty() {
+            println!(
+                "Adding {} new mood(s): {:?}",
+                moods_to_add.len(),
+                moods_to_add
+                    .iter()
+                    .map(|m| &m.name)
+                    .collect::<Vec<&String>>()
+            );
+        }
+
+        if !tags_to_add.is_empty() {
+            println!(
+                "Adding {} new tag(s): {:?}",
+                tags_to_add.len(),
+                tags_to_add
+                    .iter()
+                    .map(|t| &t.name)
+                    .collect::<Vec<&String>>()
+            );
+        }
+
+        self.moods.extend(moods_to_add);
+        self.tags.extend(tags_to_add);
+
+        self.day_entries.insert(index, entry);
+    }
+
     /// Aggressive simplification of the note: only keep alphanumeric characters
     fn simplify_note_for_comparing(entry: &DayEntry) -> String {
         entry
@@ -70,7 +123,7 @@ impl Diary {
 
                         // keep the longer note
                         if self_.len() < other_.len() {
-                            self_entry.note = added_entry.note.clone();
+                            self_entry.note.clone_from(&added_entry.note);
                         }
 
                         true
@@ -87,7 +140,7 @@ impl Diary {
                 left_index += 1;
             } else {
                 let entry = added_entry.clone();
-                self.day_entries.insert(left_index, entry.clone());
+                self.add_entry(left_index, entry, mergee);
                 left_index += 1;
                 right_index += 1;
             }
@@ -96,8 +149,7 @@ impl Diary {
         // Add the remaining entries from mergee
         while right_index < mergee.day_entries.len() {
             let added_entry = &mut mergee.day_entries[right_index];
-            let entry = added_entry.clone();
-            self.day_entries.insert(left_index, entry.clone());
+            self.add_entry(self.day_entries.len(), added_entry.clone(), mergee);
             right_index += 1;
         }
     }
