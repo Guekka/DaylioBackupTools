@@ -81,8 +81,8 @@ pub(crate) fn parse_md(input: &str) -> Diary {
 
     Diary {
         day_entries,
-        moods: header.as_ref().map(|h| h.moods.clone()).unwrap_or_default(),
-        tags: header.as_ref().map(|h| h.tags.clone()).unwrap_or_default(),
+        moods,
+        tags,
     }
 }
 
@@ -305,7 +305,40 @@ And this time, only a tag.
 
         // Then
         let expected = Diary {
-            moods: vec![],
+            moods: vec![
+                MoodDetail {
+                    name: "Happy".to_owned(),
+                    icon_id: None,
+                    wellbeing_value: None,
+                    category: None,
+                },
+                MoodDetail {
+                    name: "Excited".to_owned(),
+                    icon_id: None,
+                    wellbeing_value: None,
+                    category: None,
+                },
+                MoodDetail {
+                    name: "Sad".to_owned(),
+                    icon_id: None,
+                    wellbeing_value: None,
+                    category: None,
+                },
+            ],
+            tags: vec![
+                TagDetail {
+                    name: "Work".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "Personal".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "Urgent".to_owned(),
+                    icon_id: None,
+                },
+            ],
             day_entries: vec![
                 DayEntry {
                     date: NaiveDate::from_ymd_opt(2023, 10, 1)
@@ -366,7 +399,6 @@ And this time, only a tag.
                     note: "And this time, only a tag.".to_string(),
                 },
             ],
-            tags: Vec::new(),
         };
 
         assert_eq!(parsed, expected);
