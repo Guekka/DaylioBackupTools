@@ -100,9 +100,7 @@ fn extract_tags(entry: &ParsedDayEntry, all_tags: &[TagDetail]) -> (String, Vec<
     // add tags detected by the parser, making sure they're valid. Try to guess the tags
     // if one is invalid
     let mut parsed_tags = entry.tags.clone();
-    while !parsed_tags.is_empty() {
-        let parsed_tag = parsed_tags.pop().unwrap();
-
+    while let Some(parsed_tag) = parsed_tags.pop() {
         if all_tags
             .iter()
             .any(|x| x.name.to_lowercase() == parsed_tag.to_lowercase())
@@ -144,7 +142,7 @@ fn update_mood_category(moods: &mut [MoodDetail]) {
         if let Some(idx) = daylio_predefined_mood_idx(&mood.name) {
             prev_id = Some(idx);
         }
-        mood.wellbeing_value = u64::try_from(prev_id.unwrap_or(1)).ok();
+        mood.wellbeing_value = prev_id.or(Some(1));
     }
 }
 
@@ -354,7 +352,7 @@ sentence. Unicode ligature ﬃ
 Preserve the empty line, but not the final one
 
 ";
-        println!("original: {}", text);
+        println!("original: {text}");
 
         let simplified = simplify_note_heuristically(text.to_owned());
         assert_eq!(

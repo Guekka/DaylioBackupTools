@@ -94,7 +94,7 @@ fn main() -> Result<()> {
         }
         Commands::Pack { input, output } => {
             let daylio = load_daylio_json(&input)?;
-            store_daylio_backup(daylio, &output)?;
+            store_daylio_backup(&daylio, &output)?;
         }
         Commands::Convert { input, output } => {
             let diary = load_diary(&input)?;

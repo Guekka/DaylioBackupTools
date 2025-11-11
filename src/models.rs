@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
-const NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
+static NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
     LazyLock::new(|| DaylioCustomMood {
         id: 999_999,
         custom_name: String::from("Inconnu"),
@@ -38,7 +38,7 @@ pub struct DayEntry {
 
 impl PartialOrd<Self> for DayEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.date.cmp(&other.date))
+        Some(self.cmp(other))
     }
 }
 
@@ -56,6 +56,7 @@ pub struct Tag {
 }
 
 impl Tag {
+    #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
             name: String::from(name),
@@ -71,6 +72,7 @@ pub struct Mood {
 }
 
 impl Mood {
+    #[must_use]
     pub fn new(name: &str) -> Self {
         Self {
             name: String::from(name),
@@ -78,11 +80,17 @@ impl Mood {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TagDetail {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_id: Option<i64>,
+}
+
+impl PartialOrd for TagDetail {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for TagDetail {
@@ -91,7 +99,7 @@ impl Ord for TagDetail {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MoodDetail {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,6 +108,12 @@ pub struct MoodDetail {
     pub wellbeing_value: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
+}
+
+impl PartialOrd for MoodDetail {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl Ord for MoodDetail {
@@ -118,6 +132,7 @@ pub struct Diary {
 }
 
 impl Diary {
+    #[must_use]
     pub fn sorted(mut self) -> Self {
         self.day_entries.sort();
         self.moods.sort();
@@ -132,21 +147,23 @@ impl From<Daylio> for Diary {
             .custom_moods
             .iter()
             .map(|mood| {
-                let name = if !mood.custom_name.is_empty() {
-                    mood.custom_name.clone()
-                } else {
+                let name = if mood.custom_name.is_empty() {
                     daylio_predefined_mood_name(mood.predefined_name_id)
                         .unwrap()
                         .into()
+                } else {
+                    mood.custom_name.clone()
                 };
 
                 // This is obviously lossy, but we don't have more information in Daylio format
-                let wellbeing_value = (mood.mood_group_id * 100 + mood.mood_group_order) as u64;
+                let wellbeing_value = (mood.mood_group_id * 100 + mood.mood_group_order)
+                    .try_into()
+                    .ok();
 
                 MoodDetail {
                     name,
                     icon_id: Some(mood.icon_id),
-                    wellbeing_value: Some(wellbeing_value),
+                    wellbeing_value,
                     category: None,
                 }
             })
@@ -248,7 +265,7 @@ impl TryFrom<Diary> for Daylio {
         let max_mood_value = diary
             .moods
             .iter()
-            .flat_map(|m| m.wellbeing_value)
+            .filter_map(|m| m.wellbeing_value)
             .max()
             .unwrap_or(1);
 
@@ -313,7 +330,7 @@ impl TryFrom<Diary> for Daylio {
                     year: i64::from(entry.date.year()),
                     datetime: entry.date.and_utc().timestamp_millis(),
                     time_zone_offset: 0,
-                    mood: if let Some(mood) = entry_moods.get(0) {
+                    mood: if let Some(mood) = entry_moods.first() {
                         all_moods
                             .iter()
                             .find(|m| m.custom_name == mood.name)

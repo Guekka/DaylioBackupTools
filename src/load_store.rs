@@ -65,7 +65,7 @@ pub fn load_diary(path: &Path) -> Result<Diary> {
     }
 }
 
-pub fn store_daylio_backup(daylio: Daylio, path: &Path) -> Result<()> {
+pub fn store_daylio_backup(daylio: &Daylio, path: &Path) -> Result<()> {
     daylio.check_soundness()?;
 
     let file = File::create(path)?;
@@ -104,7 +104,7 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
     };
     let yaml = serde_yaml::to_string(&metadata)?;
     writeln!(file, "---")?;
-    writeln!(file, "{}", yaml)?;
+    writeln!(file, "{yaml}")?;
     writeln!(file, "---\n")?;
 
     for entry in diary.day_entries {
@@ -118,7 +118,7 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
             .join(" / ");
 
         if !moods_str.is_empty() {
-            writeln!(file, "{{{}}}", moods_str)?;
+            writeln!(file, "{{{moods_str}}}")?;
         }
 
         let tags_str = entry
@@ -129,7 +129,7 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
             .join(",");
 
         if !tags_str.is_empty() {
-            writeln!(file, "#{{{}}}", tags_str)?;
+            writeln!(file, "#{{{tags_str}}}")?;
         }
         writeln!(file, "{}\n", entry.note)?;
     }
@@ -149,7 +149,7 @@ pub fn store_diary(diary: Diary, path: &Path) -> Result<()> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
-            "daylio" => store_daylio_backup(diary.try_into()?, path),
+            "daylio" => store_daylio_backup(&diary.try_into()?, path),
             "md" => store_diary_md(diary, path),
             "daylio.json" => store_daylio_json(&diary.try_into()?, path),
             "json" => store_diary_json(&diary, path),

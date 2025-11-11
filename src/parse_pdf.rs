@@ -341,7 +341,10 @@ fn parse_day_entries(input: &str) -> IResult<&str, Vec<ParsedDayEntry>> {
                 date: mem::replace(&mut prev_date, next_date).unwrap(),
                 mood: mood.to_owned(),
                 day_hour: day_hour.to_owned(),
-                note: note.into_iter().map(std::borrow::ToOwned::to_owned).collect(),
+                note: note
+                    .into_iter()
+                    .map(std::borrow::ToOwned::to_owned)
+                    .collect(),
                 tags: tags.into_iter().map(ToOwned::to_owned).collect(),
             })
         },

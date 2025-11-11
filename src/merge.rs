@@ -1,6 +1,6 @@
 use crate::models::{DayEntry, Diary};
 use crate::{Mood, MoodDetail, Tag, TagDetail};
-use chrono::{Datelike, TimeDelta};
+use chrono::TimeDelta;
 
 /// Policy for comparing day entries
 /// - Strict: note must be exactly the same

@@ -25,9 +25,9 @@ mod tests {
     /// This is not so bad! The PDF format is not meant to be machine-readable.
     fn pdf_format_english() -> Result<()> {
         let actual = load_daylio_pdf("tests/data/official/english.pdf".as_ref())?;
-        let expected = Diary::from(expected_pdf(false));
+        let expected = expected_pdf(false);
 
-        assert_eq!(actual, Diary::from(expected));
+        assert_eq!(actual, expected);
 
         Ok(())
     }
@@ -35,7 +35,7 @@ mod tests {
     #[test]
     fn pdf_format_french() -> Result<()> {
         let actual = load_daylio_pdf("tests/data/official/french.pdf".as_ref())?;
-        let expected = Diary::from(expected_pdf(true));
+        let expected = expected_pdf(true);
 
         assert_eq!(actual, expected);
 

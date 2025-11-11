@@ -52,7 +52,7 @@ pub(crate) fn parse_md(input: &str) -> Diary {
 
     let day_entries = forward_fill_dates(day_entries)
         .into_iter()
-        .map(|(date, note)| make_entry(date, note))
+        .map(|(date, note)| make_entry(date, &note))
         .collect::<Vec<_>>();
 
     let mut moods = header.as_ref().map(|h| h.moods.clone()).unwrap_or_default();
@@ -133,18 +133,18 @@ fn read_tag_line(input: &str) -> IResult<&str, &str> {
     .parse(input)
 }
 
-fn make_entry(date: NaiveDateTime, note: String) -> DayEntry {
+fn make_entry(date: NaiveDateTime, note: &str) -> DayEntry {
     // First line may contain mood in the form: {Mood / Mood2}
     // and tags in the form: #{Tag1,Tag2}
     let (remaining, (moods, tags)) = (opt(read_mood_line), opt(read_tag_line))
-        .parse(&note)
+        .parse(note)
         .unwrap();
 
     let moods = moods
         .map(|mood_line| {
             mood_line
                 .split('/')
-                .map(|mood_name| mood_name.trim())
+                .map(str::trim)
                 .map(Mood::new)
                 .collect::<HashSet<_>>()
         })
@@ -154,7 +154,7 @@ fn make_entry(date: NaiveDateTime, note: String) -> DayEntry {
         .map(|tag_line| {
             tag_line
                 .split(',')
-                .map(|tag_name| tag_name.trim())
+                .map(str::trim)
                 .map(Tag::new)
                 .collect::<HashSet<_>>()
         })
@@ -257,8 +257,6 @@ pub(crate) fn load_md(path: &Path) -> Result<Diary> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MoodDetail, TagDetail};
-    use color_eyre::Result;
     use similar_asserts::assert_eq;
 
     #[test]
@@ -270,9 +268,9 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_md() -> Result<()> {
+    fn test_parse_md() {
         // Given
-        const INPUT: &str = r#"[2023-10-01 12:00]
+        const INPUT: &str = r"[2023-10-01 12:00]
 Full date
 [12:00]
 No date, deduced from previous
@@ -298,7 +296,7 @@ Just a sad entry.
 [2025-10-04 14:15]
 #{Urgent}
 And this time, only a tag.
-"#;
+";
 
         // When
         let parsed = parse_md(INPUT);
@@ -402,13 +400,12 @@ And this time, only a tag.
         };
 
         assert_eq!(parsed, expected);
-        Ok(())
     }
 
     #[test]
-    fn test_parse_md_with_header() -> Result<()> {
+    fn test_parse_md_with_header() {
         // Given
-        const INPUT: &str = r#"---
+        const INPUT: &str = r"---
 moods:
     - name: Happy
       wellbeing_value: 5
@@ -422,7 +419,7 @@ tags:
 {Happy / Sad}
 #{Work,Personal}
 Full date entry.
-"#;
+";
 
         // When
         let parsed = parse_md(INPUT);
@@ -469,6 +466,5 @@ Full date entry.
         };
 
         assert_eq!(parsed, expected);
-        Ok(())
     }
 }
