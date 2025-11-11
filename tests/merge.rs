@@ -2,7 +2,7 @@
 mod tests {
     use chrono::DateTime;
     use color_eyre::Result;
-    use std::collections::HashSet;
+    use indexmap::IndexSet;
 
     use daylio_tools::{
         DayEntry, DayEntryComparisonPolicy, Daylio, DaylioCustomMood, DaylioDayEntry, DaylioTag,
@@ -178,16 +178,16 @@ mod tests {
             date: DateTime::from_timestamp_millis(original_entry.datetime)
                 .unwrap()
                 .naive_utc(),
-            moods: HashSet::from([Mood::new("super")]),
-            tags: HashSet::new(),
+            moods: IndexSet::from([Mood::new("super")]),
+            tags: IndexSet::new(),
             note: "Note title\n\nThis is a note with a line break\n".to_owned(),
         };
         let expected_entry2 = DayEntry {
             date: DateTime::from_timestamp_millis(original_entry2.datetime)
                 .unwrap()
                 .naive_utc(),
-            moods: HashSet::from([Mood::new("super")]),
-            tags: HashSet::new(),
+            moods: IndexSet::from([Mood::new("super")]),
+            tags: IndexSet::new(),
             note: original_entry2.note,
         };
 

@@ -5,6 +5,7 @@ use crate::models::{DayEntry, Diary, MdMetadata, Mood, Tag};
 use crate::{MoodDetail, TagDetail};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use color_eyre::eyre::Result;
+use indexmap::IndexSet;
 use nom::IResult;
 use nom::Parser;
 use nom::bytes::complete::{tag, take_until};
@@ -12,7 +13,6 @@ use nom::character::complete::{char, line_ending};
 use nom::combinator::opt;
 use nom::sequence::{delimited, terminated};
 use regex::Regex;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -146,7 +146,7 @@ fn make_entry(date: NaiveDateTime, note: &str) -> DayEntry {
                 .split('/')
                 .map(str::trim)
                 .map(Mood::new)
-                .collect::<HashSet<_>>()
+                .collect::<IndexSet<_>>()
         })
         .unwrap_or_default();
 
@@ -156,7 +156,7 @@ fn make_entry(date: NaiveDateTime, note: &str) -> DayEntry {
                 .split(',')
                 .map(str::trim)
                 .map(Tag::new)
-                .collect::<HashSet<_>>()
+                .collect::<IndexSet<_>>()
         })
         .unwrap_or_default();
 
@@ -257,6 +257,7 @@ pub(crate) fn load_md(path: &Path) -> Result<Diary> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indexmap::IndexSet;
     use similar_asserts::assert_eq;
 
     #[test]
@@ -343,8 +344,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
-                    moods: HashSet::new(),
-                    tags: HashSet::new(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
                     note: "Full date".to_string(),
                 },
                 DayEntry {
@@ -352,8 +353,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
-                    moods: HashSet::new(),
-                    tags: HashSet::new(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
                     note: "No date, deduced from previous".to_string(),
                 },
                 DayEntry {
@@ -361,8 +362,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(10, 0, 0)
                         .unwrap(),
-                    moods: HashSet::new(),
-                    tags: HashSet::new(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
                     note: "Make sure\n\nwe keep\n\nwhitespace".to_string(),
                 },
                 DayEntry {
@@ -370,12 +371,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(11, 0, 0)
                         .unwrap(),
-                    moods: vec![Mood::new("Happy"), Mood::new("Excited")]
-                        .into_iter()
-                        .collect(),
-                    tags: vec![Tag::new("Work"), Tag::new("Personal")]
-                        .into_iter()
-                        .collect(),
+                    moods: IndexSet::from([Mood::new("Happy"), Mood::new("Excited")]),
+                    tags: IndexSet::from([Tag::new("Work"), Tag::new("Personal")]),
                     note: "This is a mood and tags test.".to_string(),
                 },
                 DayEntry {
@@ -383,8 +380,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(9, 30, 0)
                         .unwrap(),
-                    moods: vec![Mood::new("Sad")].into_iter().collect(),
-                    tags: HashSet::new(),
+                    moods: IndexSet::from([Mood::new("Sad")]),
+                    tags: IndexSet::new(),
                     note: "No tags here.\n\nJust a sad entry.".to_string(),
                 },
                 DayEntry {
@@ -392,8 +389,8 @@ And this time, only a tag.
                         .unwrap()
                         .and_hms_opt(14, 15, 0)
                         .unwrap(),
-                    moods: HashSet::new(),
-                    tags: vec![Tag::new("Urgent")].into_iter().collect(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::from([Tag::new("Urgent")]),
                     note: "And this time, only a tag.".to_string(),
                 },
             ],

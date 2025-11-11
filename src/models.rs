@@ -5,6 +5,7 @@ use crate::{
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -31,8 +32,8 @@ pub struct MdMetadata {
 #[derive(Debug, PartialEq, Clone, Default, Eq, Serialize, Deserialize)]
 pub struct DayEntry {
     pub date: NaiveDateTime,
-    pub moods: HashSet<Mood>,
-    pub tags: HashSet<Tag>,
+    pub moods: IndexSet<Mood>, // Using IndexSet to preserve order
+    pub tags: IndexSet<Tag>,
     pub note: String,
 }
 
@@ -210,7 +211,7 @@ impl From<Daylio> for Diary {
                     date: DateTime::from_timestamp_millis(entry.datetime)
                         .unwrap()
                         .naive_utc(),
-                    moods: HashSet::from([mood]),
+                    moods: IndexSet::from([mood]),
                     tags: entry
                         .tags
                         .iter()

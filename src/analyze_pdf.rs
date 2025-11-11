@@ -6,6 +6,7 @@ use crate::models::{Diary, MoodDetail, Tag, TagDetail};
 use crate::parse_pdf::{ParsedDayEntry, ParsedPdf};
 use chrono::{NaiveDateTime, NaiveTime};
 use color_eyre::{Result, eyre};
+use indexmap::IndexSet;
 use std::collections::HashSet;
 
 fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
@@ -315,11 +316,11 @@ impl TryFrom<ParsedPdf> for Diary {
                     .expect("Entry mood not found in moods")
                     .clone();
 
-                let entry_tags: HashSet<Tag> = entry_tags.iter().map(|t| Tag::new(t)).collect();
+                let entry_tags: IndexSet<Tag> = entry_tags.iter().map(|t| Tag::new(t)).collect();
 
                 DayEntry {
                     date,
-                    moods: HashSet::from([Mood::new(&entry_mood.name)]),
+                    moods: IndexSet::from([Mood::new(&entry_mood.name)]),
                     tags: entry_tags,
                     note,
                 }
@@ -340,6 +341,7 @@ mod tests {
     use super::*;
     use crate::parse_pdf::StatLine;
     use chrono::{Datelike, NaiveDate, Timelike};
+    use indexmap::IndexSet;
     use similar_asserts::assert_eq;
 
     #[test]
@@ -493,37 +495,37 @@ Preserve the empty line, but not the final one
             day_entries: vec![
                 DayEntry {
                     date: parse_date(&parsed.day_entries[0]).unwrap(),
-                    moods: HashSet::from([Mood::new("rad")]),
-                    tags: HashSet::new(),
+                    moods: IndexSet::from([Mood::new("rad")]),
+                    tags: IndexSet::new(),
                     note: "This is a note".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    moods: HashSet::from([Mood::new("rad")]),
-                    tags: HashSet::new(),
+                    moods: IndexSet::from([Mood::new("rad")]),
+                    tags: IndexSet::new(),
                     note: "This is a note²".to_owned(),
                 },
                 DayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
-                    moods: HashSet::from([Mood::new("good")]),
-                    tags: HashSet::from([
-                        Tag::new("yet another tag"),
+                    moods: IndexSet::from([Mood::new("good")]),
+                    tags: IndexSet::from([
                         Tag::new("another tag"),
                         Tag::new("some tag"),
+                        Tag::new("yet another tag"),
                     ]),
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
             moods: vec![
                 MoodDetail {
-                    name: "good".to_owned(),
-                    wellbeing_value: Some(2),
+                    name: "rad".to_owned(),
+                    wellbeing_value: Some(1),
                     icon_id: None,
                     category: None,
                 },
                 MoodDetail {
-                    name: "rad".to_owned(),
-                    wellbeing_value: Some(1),
+                    name: "good".to_owned(),
+                    wellbeing_value: Some(2),
                     icon_id: None,
                     category: None,
                 },
