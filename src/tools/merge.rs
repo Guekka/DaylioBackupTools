@@ -1,4 +1,4 @@
-use crate::models::{DayEntry, Diary};
+use crate::formats::models::{DayEntry, Diary};
 use crate::{Mood, MoodDetail, Tag, TagDetail};
 use chrono::TimeDelta;
 

@@ -20,9 +20,9 @@ use pdftotext::pdftotext_layout;
 type IResult<I, O> = nom::IResult<I, O, nom_language::error::VerboseError<I>>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct StatLine {
-    pub(crate) name: String,
-    pub(crate) count: u32,
+pub struct StatLine {
+    pub name: String,
+    pub count: u32,
 }
 
 impl StatLine {
@@ -32,18 +32,18 @@ impl StatLine {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ParsedDayEntry {
-    pub(crate) date: NaiveDate,
-    pub(crate) day_hour: String,
-    pub(crate) mood: String,
-    pub(crate) note: Vec<String>,
-    pub(crate) tags: Vec<String>,
+pub struct ParsedDayEntry {
+    pub date: NaiveDate,
+    pub day_hour: String,
+    pub mood: String,
+    pub note: Vec<String>,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ParsedPdf {
-    pub(crate) stats: Vec<StatLine>,
-    pub(crate) day_entries: Vec<ParsedDayEntry>,
+pub struct ParsedPdf {
+    pub stats: Vec<StatLine>,
+    pub day_entries: Vec<ParsedDayEntry>,
 }
 
 fn extract_txt(pdf: &Path) -> Result<String> {
@@ -371,7 +371,7 @@ impl Display for ParsePdfError {
 
 impl std::error::Error for ParsePdfError {}
 
-pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
+pub fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
     let text = extract_txt(path)?;
     let input = text.as_str();
 
@@ -392,7 +392,7 @@ pub(crate) fn parse_pdf(path: &Path) -> Result<ParsedPdf> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+pub mod tests {
     use similar_asserts::assert_eq;
     use std::io::Read;
 
@@ -563,7 +563,7 @@ pub(crate) mod tests {
         assert_eq!(parsed.1, expected_parsed);
     }
 
-    pub(crate) fn expected_parsed_tags() -> Vec<StatLine> {
+    pub fn expected_parsed_tags() -> Vec<StatLine> {
         /*
             rad                     15×        Tag 21 NUD   9×   Tag 8 WNA    2×
             Mood 0 KWY               5×        Tag 11 XRB   8×   Tag 14 NEU   2×
