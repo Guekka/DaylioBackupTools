@@ -1,16 +1,39 @@
 //! Parses a Markdown diary. This is not exactly related to Daylio, and is tailored to my
 //! personal needs.
 
-use crate::Daylio;
-use crate::analyze_pdf::{Mood, ProcessedDayEntry, ProcessedPdf};
+use crate::models::{DayEntry, Diary, MdMetadata, Mood, Tag};
+use crate::{MoodDetail, TagDetail};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
-use color_eyre::Report;
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{Context, Result};
+use indexmap::IndexSet;
+use nom::IResult;
+use nom::Parser;
+use nom::bytes::complete::{tag, take_until};
+use nom::combinator::opt;
 use regex::Regex;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::LazyLock;
+
+// First line may contain mood in the form: {Mood / Mood2}
+// Second line may contain tags in the form: #{Tag,Tag2}
+// Followed by the note body, which may be multiline
+static NOTE_BODY_REGEX: LazyLock<Regex, fn() -> Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?x)
+        # optional mood line
+        (?:\{(?P<moods>[^}]*)}\s*)?
+        # optional tag line
+        (?:\#\{(?P<tags>[^}]*)}\s*)?
+        # multiline note body
+        (?s)
+        (?P<body>.*)
+        ",
+    )
+        .unwrap()
+});
+
 static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
     LazyLock::new(|| {
         Regex::new(
@@ -37,26 +60,46 @@ static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
         .unwrap()
     });
 
-pub(crate) fn parse_md(input: &str) -> Result<ProcessedPdf> {
-    // entries are separated by a date in the format[YYYY-MM-DD HH:MM], with one of day and hour optional
+pub(crate) fn parse_md(input: &str) -> Diary {
+    let (input, header) = opt(parse_yaml_header).parse(input).unwrap();
 
+    // entries are separated by a date in the format[YYYY-MM-DD HH:MM], with one of day and hour optional
     let day_entries = split_entries(input);
 
     let day_entries = forward_fill_dates(day_entries)
         .into_iter()
-        .map(|(date, note)| make_entry(date, note))
-        .collect::<Result<Vec<_>>>()?;
+        .map(|(date, note)| make_entry(date, &note))
+        .collect::<Vec<_>>();
 
-    Ok(ProcessedPdf {
+    let mut moods = header.as_ref().map(|h| h.moods.clone()).unwrap_or_default();
+    let mut tags = header.as_ref().map(|h| h.tags.clone()).unwrap_or_default();
+    // add unknown moods and tags from entries to the header lists
+    for entry in &day_entries {
+        for mood in &entry.moods {
+            if !moods.iter().any(|m| m.name == mood.name) {
+                moods.push(MoodDetail {
+                    name: mood.name.clone(),
+                    icon_id: None,
+                    wellbeing_value: None,
+                    category: None,
+                });
+            }
+        }
+        for tag in &entry.tags {
+            if !tags.iter().any(|t| t.name == tag.name) {
+                tags.push(TagDetail {
+                    name: tag.name.clone(),
+                    icon_id: None,
+                });
+            }
+        }
+    }
+
+    Diary {
         day_entries,
-        moods: vec![Mood {
-            id: 10,
-            name: String::from("Inconnu"),
-            group: 0,
-            predefined: false,
-        }],
-        tags: Vec::new(),
-    })
+        moods,
+        tags,
+    }
 }
 
 fn forward_fill_dates(
@@ -90,13 +133,38 @@ fn forward_fill_dates(
     dated_entries
 }
 
-fn make_entry(date: NaiveDateTime, note: String) -> Result<ProcessedDayEntry, Report> {
-    Ok(ProcessedDayEntry {
+fn make_entry(date: NaiveDateTime, note: &str) -> DayEntry {
+    let captures = NOTE_BODY_REGEX.captures(note).unwrap();
+    let moods = captures.name("moods").map(|m| m.as_str());
+    let tags = captures.name("tags").map(|t| t.as_str());
+    let remaining = captures.name("body").map(|b| b.as_str()).unwrap_or("");
+
+    let moods = moods
+        .map(|mood_line| {
+            mood_line
+                .split('/')
+                .map(str::trim)
+                .map(Mood::new)
+                .collect::<IndexSet<_>>()
+        })
+        .unwrap_or_default();
+
+    let tags = tags
+        .map(|tag_line| {
+            tag_line
+                .split(',')
+                .map(str::trim)
+                .map(Tag::new)
+                .collect::<IndexSet<_>>()
+        })
+        .unwrap_or_default();
+
+    DayEntry {
         date,
-        mood: 10,
-        tags: vec![],
-        note,
-    })
+        moods,
+        tags,
+        note: remaining.trim().to_owned(),
+    }
 }
 
 fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
@@ -150,7 +218,7 @@ fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
             let [(start, start_date, start_time), (end, _, _)] = window else {
                 panic!("Window should have exactly two elements");
             };
-            extract_entry(*start, *end, start_date.clone(), start_time.clone())
+            extract_entry(*start, *end, *start_date, *start_time)
         })
         .collect();
 
@@ -158,30 +226,44 @@ fn split_entries(input: &str) -> Vec<(Option<NaiveDate>, NaiveTime, String)> {
     let last_entry = extract_entry(
         last_entry.0,
         input.lines().count(),
-        last_entry.1.clone(),
-        last_entry.2.clone(),
+        last_entry.1,
+        last_entry.2,
     );
 
     entries.push(last_entry);
     entries
 }
 
-pub(crate) fn load_md(path: &Path) -> Result<Daylio> {
-    let mut file = File::open(path)?;
+fn parse_yaml_header(input: &str) -> IResult<&str, MdMetadata> {
+    tag("---\n")
+        .and(take_until("\n---"))
+        .and(tag("\n---"))
+        .map(|((_, yaml_content), _)| {
+            let metadata: MdMetadata =
+                serde_yaml::from_str(yaml_content).expect("Failed to parse YAML header");
+            metadata
+        })
+        .parse(input)
+}
+
+pub(crate) fn load_md(path: &Path) -> Result<Diary> {
+    let mut file =
+        File::open(path).with_context(|| format!("Failed to open file: {}", path.display()))?;
     let mut data = String::new();
     file.read_to_string(&mut data)?;
-    parse_md(&data).map(|processed| processed.try_into())?
+    Ok(parse_md(&data))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use color_eyre::Result;
+    use indexmap::IndexSet;
+    use similar_asserts::assert_eq;
 
     #[test]
-    fn test_parse_md() -> Result<()> {
+    fn test_parse_md() {
         // Given
-        const INPUT: &str = r#"[2023-10-01 12:00]
+        const INPUT: &str = r"[2023-10-01 12:00]
 Full date
 [12:00]
 No date, deduced from previous
@@ -192,52 +274,181 @@ Make sure
 we keep
 
 whitespace
-"#;
+
+[2025-10-02 11:00]
+{Happy / Excited}
+#{Work,Personal}
+This is a mood and tags test.
+
+[2025-10-03 09:30]
+{Sad}
+No tags here.
+
+Just a sad entry.
+
+[2025-10-04 14:15]
+#{Urgent}
+And this time, only a tag.
+
+[2016-09-26 19:42]
+{Happy}
+#{mood,tag,no-body}
+";
 
         // When
-        let parsed = parse_md(INPUT)?;
+        let parsed = parse_md(INPUT);
 
         // Then
-        let expected: ProcessedPdf = ProcessedPdf {
+        let expected = Diary {
+            moods: vec!["Happy", "Excited", "Sad"]
+                .into_iter()
+                .map(|mood_name| MoodDetail {
+                    name: mood_name.to_owned(),
+                    icon_id: None,
+                    wellbeing_value: None,
+                    category: None,
+                })
+                .collect::<Vec<_>>(),
+            tags: vec!["Work", "Personal", "Urgent", "mood", "tag", "no-body"]
+                .into_iter()
+                .map(|tag_name| TagDetail {
+                    name: tag_name.to_owned(),
+                    icon_id: None,
+                })
+                .collect(),
             day_entries: vec![
-                ProcessedDayEntry {
-                    date: chrono::NaiveDate::from_ymd_opt(2023, 10, 1)
-                        .unwrap()
-                        .and_hms_opt(12, 0, 0)
-                        .unwrap(),
-                    mood: 10,
-                    tags: vec![],
-                    note: "Full date".to_string(),
-                },
-                ProcessedDayEntry {
+                DayEntry {
                     date: NaiveDate::from_ymd_opt(2023, 10, 1)
                         .unwrap()
                         .and_hms_opt(12, 0, 0)
                         .unwrap(),
-                    mood: 10,
-                    tags: vec![],
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
+                    note: "Full date".to_string(),
+                },
+                DayEntry {
+                    date: NaiveDate::from_ymd_opt(2023, 10, 1)
+                        .unwrap()
+                        .and_hms_opt(12, 0, 0)
+                        .unwrap(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
                     note: "No date, deduced from previous".to_string(),
                 },
-                ProcessedDayEntry {
+                DayEntry {
                     date: NaiveDate::from_ymd_opt(2025, 10, 1)
                         .unwrap()
                         .and_hms_opt(10, 0, 0)
                         .unwrap(),
-                    mood: 10,
-                    tags: vec![],
+                    moods: IndexSet::new(),
+                    tags: IndexSet::new(),
                     note: "Make sure\n\nwe keep\n\nwhitespace".to_string(),
                 },
+                DayEntry {
+                    date: NaiveDate::from_ymd_opt(2025, 10, 2)
+                        .unwrap()
+                        .and_hms_opt(11, 0, 0)
+                        .unwrap(),
+                    moods: IndexSet::from([Mood::new("Happy"), Mood::new("Excited")]),
+                    tags: IndexSet::from([Tag::new("Work"), Tag::new("Personal")]),
+                    note: "This is a mood and tags test.".to_string(),
+                },
+                DayEntry {
+                    date: NaiveDate::from_ymd_opt(2025, 10, 3)
+                        .unwrap()
+                        .and_hms_opt(9, 30, 0)
+                        .unwrap(),
+                    moods: IndexSet::from([Mood::new("Sad")]),
+                    tags: IndexSet::new(),
+                    note: "No tags here.\n\nJust a sad entry.".to_string(),
+                },
+                DayEntry {
+                    date: NaiveDate::from_ymd_opt(2025, 10, 4)
+                        .unwrap()
+                        .and_hms_opt(14, 15, 0)
+                        .unwrap(),
+                    moods: IndexSet::new(),
+                    tags: IndexSet::from([Tag::new("Urgent")]),
+                    note: "And this time, only a tag.".to_string(),
+                },
+                DayEntry {
+                    date: NaiveDate::from_ymd_opt(2016, 9, 26)
+                        .unwrap()
+                        .and_hms_opt(19, 42, 0)
+                        .unwrap(),
+                    moods: IndexSet::from([Mood::new("Happy")]),
+                    tags: IndexSet::from([Tag::new("mood"), Tag::new("tag"), Tag::new("no-body")]),
+                    note: "".to_owned(),
+                },
             ],
-            moods: vec![Mood {
-                id: 10,
-                name: String::from("Inconnu"),
-                group: 0,
-                predefined: false,
-            }],
-            tags: Vec::new(),
         };
 
         assert_eq!(parsed, expected);
-        Ok(())
+    }
+
+    #[test]
+    fn test_parse_md_with_header() {
+        // Given
+        const INPUT: &str = r"---
+moods:
+    - name: Happy
+      wellbeing_value: 5
+    - name: Sad
+      wellbeing_value: 1
+tags:
+    - name: Work
+    - name: Personal
+---
+[2023-10-01 12:00]
+{Happy / Sad}
+#{Work,Personal}
+Full date entry.
+";
+
+        // When
+        let parsed = parse_md(INPUT);
+
+        // Then
+        let expected = Diary {
+            moods: vec![
+                MoodDetail {
+                    name: "Happy".to_owned(),
+                    icon_id: None,
+                    wellbeing_value: Some(5),
+                    category: None,
+                },
+                MoodDetail {
+                    name: "Sad".to_owned(),
+                    icon_id: None,
+                    wellbeing_value: Some(1),
+                    category: None,
+                },
+            ],
+            tags: vec![
+                TagDetail {
+                    name: "Work".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "Personal".to_owned(),
+                    icon_id: None,
+                },
+            ],
+            day_entries: vec![DayEntry {
+                date: NaiveDate::from_ymd_opt(2023, 10, 1)
+                    .unwrap()
+                    .and_hms_opt(12, 0, 0)
+                    .unwrap(),
+                moods: vec![Mood::new("Happy"), Mood::new("Sad")]
+                    .into_iter()
+                    .collect(),
+                tags: vec![Tag::new("Work"), Tag::new("Personal")]
+                    .into_iter()
+                    .collect(),
+                note: "Full date entry.".to_string(),
+            }],
+        };
+
+        assert_eq!(parsed, expected);
     }
 }

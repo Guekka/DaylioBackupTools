@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::io::prelude::*;
@@ -10,9 +9,9 @@ use color_eyre::eyre::{ContextCompat, WrapErr, eyre};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
-use crate::Daylio;
-use crate::analyze_pdf::ProcessedPdf;
+use crate::models::Diary;
 use crate::parse_md::load_md;
+use crate::{Daylio, MdMetadata};
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
     let file = File::open(path)?;
@@ -37,20 +36,27 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
     serde_json::from_str(&data).wrap_err("Failed to parse Daylio JSON")
 }
 
-pub fn load_daylio_pdf(path: &Path) -> Result<Daylio> {
-    crate::parse_pdf::parse_pdf(path)
-        .and_then(TryInto::<ProcessedPdf>::try_into)
-        .and_then(TryInto::<Daylio>::try_into)
+pub fn load_daylio_pdf(path: &Path) -> Result<Diary> {
+    crate::parse_pdf::parse_pdf(path).and_then(TryInto::<Diary>::try_into)
 }
 
-pub fn load_daylio(path: &Path) -> Result<Daylio> {
+pub fn load_diary_json(path: &Path) -> Result<Diary> {
+    let mut file = File::open(path)?;
+    let mut data = String::new();
+    file.read_to_string(&mut data)?;
+
+    serde_json::from_str(&data).wrap_err("Failed to parse Diary JSON")
+}
+
+pub fn load_diary(path: &Path) -> Result<Diary> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
-            "daylio" => load_daylio_backup(path),
-            "json" => load_daylio_json(path),
+            "daylio" => load_daylio_backup(path).map(Into::<Diary>::into),
             "pdf" => load_daylio_pdf(path),
             "md" => load_md(path),
+            "daylio.json" => load_daylio_json(path).map(Into::<Diary>::into),
+            "json" => load_diary_json(path),
 
             _ => Err(eyre!("Unknown file extension")),
         }
@@ -60,12 +66,14 @@ pub fn load_daylio(path: &Path) -> Result<Daylio> {
 }
 
 pub fn store_daylio_backup(daylio: &Daylio, path: &Path) -> Result<()> {
+    daylio.check_soundness()?;
+
     let file = File::create(path)?;
 
     let mut archive = ZipWriter::new(file);
     let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
-    let json = serde_json::to_string_pretty(daylio)?;
+    let json = serde_json::to_string_pretty(&daylio)?;
 
     let data = BASE64.encode(json.as_bytes());
 
@@ -85,50 +93,66 @@ pub fn store_daylio_json(daylio: &Daylio, path: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn store_daylio_md(daylio: &Daylio, path: &Path) -> Result<()> {
+pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
     let mut file = File::create(path)?;
-    let tag_map: HashMap<i64, String> = daylio
-        .tags
-        .iter()
-        .map(|tag| (tag.id, tag.name.clone()))
-        .collect();
+    diary.day_entries.sort_unstable_by_key(|entry| entry.date);
 
-    let mood_map: HashMap<i64, String> = daylio
-        .custom_moods
-        .iter()
-        .map(|mood| (mood.id, mood.custom_name.clone()))
-        .collect();
+    // YAML header
+    let metadata = MdMetadata {
+        moods: diary.moods.clone(),
+        tags: diary.tags.clone(),
+    };
+    let yaml = serde_yaml::to_string(&metadata)?;
+    writeln!(file, "---")?;
+    writeln!(file, "{yaml}")?;
+    writeln!(file, "---\n")?;
 
-    for entry in &daylio.day_entries {
-        writeln!(
-            file,
-            "[{:04}-{:02}-{:02} {:02}:{:02}]",
-            entry.year, entry.month, entry.day, entry.hour, entry.minute
-        )?;
-        writeln!(file, "{{{}}}", mood_map.get(&entry.mood).unwrap())?;
-        writeln!(
-            file,
-            "{}",
-            entry
-                .tags
-                .iter()
-                .map(|tag| format!("#{}", tag_map.get(tag).unwrap()))
-                .collect::<Vec<_>>()
-                .join(",")
-        )?;
+    for entry in diary.day_entries {
+        writeln!(file, "{}", &entry.date.format("[%Y-%m-%d %H:%M]"))?;
+
+        let moods_str = entry
+            .moods
+            .iter()
+            .map(|mood| mood.name.clone())
+            .collect::<Vec<_>>()
+            .join(" / ");
+
+        if !moods_str.is_empty() {
+            writeln!(file, "{{{moods_str}}}")?;
+        }
+
+        let tags_str = entry
+            .tags
+            .iter()
+            .map(|tag| tag.name.clone())
+            .collect::<Vec<_>>()
+            .join(",");
+
+        if !tags_str.is_empty() {
+            writeln!(file, "#{{{tags_str}}}")?;
+        }
         writeln!(file, "{}\n", entry.note)?;
     }
 
     Ok(())
 }
 
-pub fn store_daylio(daylio: &Daylio, path: &Path) -> Result<()> {
+fn store_diary_json(diary: &Diary, path: &Path) -> Result<()> {
+    let json = serde_json::to_string_pretty(diary)?;
+
+    let mut file = File::create(path)?;
+    file.write_all(json.as_bytes())?;
+    Ok(())
+}
+
+pub fn store_diary(diary: Diary, path: &Path) -> Result<()> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_str().wrap_err("Unknown file extension")?;
         match ext.to_lowercase().as_ref() {
-            "daylio" => store_daylio_backup(daylio, path),
-            "json" => store_daylio_json(daylio, path),
-            "md" => store_daylio_md(daylio, path),
+            "daylio" => store_daylio_backup(&diary.try_into()?, path),
+            "md" => store_diary_md(diary, path),
+            "daylio.json" => store_daylio_json(&diary.try_into()?, path),
+            "json" => store_diary_json(&diary, path),
             _ => Err(eyre!("Unknown file extension")),
         }
     } else {

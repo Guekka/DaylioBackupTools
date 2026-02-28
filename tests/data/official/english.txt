@@ -1,0 +1,56 @@
+Daylio Export                                                                                                                 1
+May 16, 2015 - January 25, 2023
+
+
+
+     rad                       1×             manger sain                    2×             exercice                        1×
+
+     meh                       1×             ménage                         2×             sport                           1×
+
+     null                      1×             famille                         1×            films                           1×
+
+     awful                     2×             rendez vous                     1×            shopping                        1×
+
+
+
+January 24, 2023             AWFUL
+Tuesday 11 36 AM
+
+
+January 24, 2023             RAD
+Tuesday 9 59 AM
+                                 famille       rendez vous        exercice         sport       ménage
+                     Note title
+                     Note body
+
+
+January 11, 2023             MEH
+Wednesday 10 20 PM
+                                 manger sain
+                     Hey, here's a note with
+
+
+                     Linebreaks!
+
+                     Because I love breaking parsers
+
+
+January 4, 2023              AWFUL
+Wednesday 8 00 PM
+                                 manger sain        films       ménage          shopping
+
+May 16, 2015                 NULL
+Saturday 8 00 PM
+
+                     No tag
+                     This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but
+                     its body is really long
+                     This is an old note. It has no title, but its body is really long
+                     This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but
+                     its body is really long
+                     This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but
+                     its body is really long
+                     This is an old note. It has no title, but its body is really long
+                     This is an old note. It has no title, but its body is really longThis is an old note. It has no title, but
+                     its body is really long
+

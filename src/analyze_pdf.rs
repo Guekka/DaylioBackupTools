@@ -1,40 +1,13 @@
-//! This module interprets the parsed PDF data into a Daylio struct.
+//! This module interprets the parsed PDF data into a Diary struct.
 
-use crate::parse_pdf::{DayEntry, ParsedPdf};
-use crate::{Daylio, NUMBER_OF_PREDEFINED_MOODS, daylio, merge};
-use chrono::{Datelike, NaiveDateTime, NaiveTime, Timelike};
-use color_eyre::eyre::WrapErr;
+use crate::daylio_predefined_mood_idx;
+pub(crate) use crate::models::{DayEntry, Mood};
+use crate::models::{Diary, MoodDetail, Tag, TagDetail};
+use crate::parse_pdf::{ParsedDayEntry, ParsedPdf};
+use chrono::{NaiveDateTime, NaiveTime};
 use color_eyre::{Result, eyre};
+use indexmap::IndexSet;
 use std::collections::HashSet;
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub(crate) struct ProcessedDayEntry {
-    pub(crate) date: NaiveDateTime,
-    pub(crate) mood: i64,
-    pub(crate) tags: Vec<i64>,
-    pub(crate) note: String,
-}
-
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
-pub(crate) struct Mood {
-    pub(crate) id: i64,
-    pub(crate) name: String,
-    pub(crate) group: i64,
-    pub(crate) predefined: bool,
-}
-
-#[derive(Eq, Hash, Debug, PartialEq, Clone, Default, Ord, PartialOrd)]
-pub(crate) struct Tag {
-    id: i64,
-    name: String,
-}
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub(crate) struct ProcessedPdf {
-    pub(crate) day_entries: Vec<ProcessedDayEntry>,
-    pub(crate) moods: Vec<Mood>,
-    pub(crate) tags: Vec<Tag>,
-}
 
 fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
     let date_parts = time_str.split_whitespace().collect::<Vec<_>>();
@@ -50,7 +23,7 @@ fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
         date_parts[2]
     } else {
         // 24h clock
-        let hour_int = hour.parse::<u8>().unwrap();
+        let hour_int = hour.parse::<u8>()?;
         if hour_int > 12 {
             hour = (hour_int - 12).to_string();
             "pm"
@@ -67,7 +40,7 @@ fn convert_24_hour_to_12_hour(time_str: &str) -> Result<String> {
     Ok(format!("{hour} {minute} {am_pm}"))
 }
 
-fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
+fn parse_date(entry: &ParsedDayEntry) -> Result<NaiveDateTime> {
     // skip the day of the week
     let mut time_str = entry
         .day_hour
@@ -88,8 +61,8 @@ fn parse_date(entry: &DayEntry) -> Result<NaiveDateTime> {
 /// Most of the work should already be done by the parser,
 /// but in some cases it might not be able to detect the tags.
 /// The logic here is to detect tags by checking if the line contains only known tags.
-fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
-    let mut tags_by_decreasing_length = all_tags.to_owned();
+fn extract_tags(entry: &ParsedDayEntry, all_tags: &[TagDetail]) -> (String, Vec<String>) {
+    let mut tags_by_decreasing_length: Vec<TagDetail> = all_tags.to_owned();
     // sort the tags by length, so we can remove the longest ones first in case of overlap
     tags_by_decreasing_length.sort_unstable_by(|a, b| b.name.len().cmp(&a.name.len()));
 
@@ -105,7 +78,7 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
             if line.contains(&tag.name) {
                 line_tags.push(tag.name.clone());
                 // removing the tag is not very efficient, but probably not a big deal
-                line = line.replace(&tag.name, "").to_owned();
+                line.clone_from(&line.replace(&tag.name, ""));
             }
         }
         // make sure we only have tags in this line
@@ -120,17 +93,15 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
     }
 
     // remove the tags from the note
-    let mut note_lines = entry.note.to_owned();
+    let mut note_lines = entry.note.clone();
     if let Some(last_tag_line) = last_tag_line {
         note_lines.drain(..=last_tag_line);
     }
 
     // add tags detected by the parser, making sure they're valid. Try to guess the tags
     // if one is invalid
-    let mut parsed_tags = entry.tags.to_owned();
-    while parsed_tags.len() > 0 {
-        let parsed_tag = parsed_tags.pop().unwrap();
-
+    let mut parsed_tags = entry.tags.clone();
+    while let Some(parsed_tag) = parsed_tags.pop() {
         if all_tags
             .iter()
             .any(|x| x.name.to_lowercase() == parsed_tag.to_lowercase())
@@ -166,30 +137,17 @@ fn extract_tags(entry: &DayEntry, all_tags: &[Tag]) -> (String, Vec<String>) {
     (note_lines.join("\n"), entry_tags)
 }
 
-fn predefined_mood_idx(custom_name: &str) -> Option<i64> {
-    match custom_name.to_lowercase().as_ref() {
-        "super" | "rad" => Some(1),
-        "bien" | "good" => Some(2),
-        "mouais" | "meh" => Some(3),
-        "mauvais" | "bad" => Some(4),
-        "horrible" | "awful" => Some(5),
-        _ => None,
-    }
-}
-
-fn update_mood_category(moods: &mut [Mood]) {
+fn update_mood_category(moods: &mut [MoodDetail]) {
     let mut prev_id = None;
     for mood in moods {
-        if let Some(idx) = predefined_mood_idx(&mood.name) {
-            mood.id = idx;
-            mood.predefined = true;
+        if let Some(idx) = daylio_predefined_mood_idx(&mood.name) {
             prev_id = Some(idx);
         }
-        mood.group = prev_id.unwrap_or(1);
+        mood.wellbeing_value = prev_id.or(Some(1));
     }
 }
 
-fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
+fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<TagDetail>, Vec<MoodDetail>) {
     let max_mood_index: usize = parsed
         .day_entries
         .iter()
@@ -208,30 +166,28 @@ fn split_tags_and_moods(parsed: &ParsedPdf) -> (Vec<Tag>, Vec<Mood>) {
 
     // moods and tags are stored in the same vector, so we need to separate them
     // moods appear first, then tags
-    let mut owned_stats = parsed.stats.to_owned();
+    let mut owned_stats = parsed.stats.clone();
     let (moods, tags) = owned_stats.split_at_mut(max_mood_index + 1);
 
     let mut moods = moods
         .iter()
-        .enumerate()
-        .map(|(i, stat)| Mood {
-            id: i as i64 + NUMBER_OF_PREDEFINED_MOODS + 1,
+        .map(|stat| MoodDetail {
             name: stat.name.clone(),
-            group: 0,
-            predefined: false,
+            icon_id: None,
+            wellbeing_value: None,
+            category: None,
         })
         .collect::<Vec<_>>();
 
     update_mood_category(&mut moods);
 
-    let tags = tags
-        .iter()
-        .enumerate()
-        .map(|(i, stat)| Tag {
-            id: i as i64,
+    let tags: Vec<TagDetail> = tags
+        .iter_mut()
+        .map(|stat| TagDetail {
             name: stat.name.clone(),
+            icon_id: None,
         })
-        .collect::<Vec<_>>();
+        .collect();
 
     (tags, moods)
 }
@@ -327,14 +283,14 @@ fn simplify_note_heuristically(mut text: String) -> String {
 
     simplified
         .lines()
-        .map(|line| line.trim())
+        .map(str::trim)
         .collect::<Vec<_>>()
         .join("\n")
         .trim()
         .to_owned()
 }
 
-impl TryFrom<ParsedPdf> for ProcessedPdf {
+impl TryFrom<ParsedPdf> for Diary {
     type Error = eyre::Error;
     fn try_from(parsed: ParsedPdf) -> std::result::Result<Self, Self::Error> {
         let (tags, moods) = split_tags_and_moods(&parsed);
@@ -345,7 +301,7 @@ impl TryFrom<ParsedPdf> for ProcessedPdf {
             .map(|entry| extract_tags(entry, &tags))
             .collect::<Vec<_>>();
 
-        let day_entries = parsed
+        let day_entries: Vec<DayEntry> = parsed
             .day_entries
             .into_iter()
             .enumerate()
@@ -358,128 +314,25 @@ impl TryFrom<ParsedPdf> for ProcessedPdf {
                     .iter()
                     .find(|x| x.name.to_lowercase() == entry.mood.to_lowercase())
                     .expect("Entry mood not found in moods")
-                    .id;
+                    .clone();
 
-                let entry_tags = entry_tags
-                    .iter()
-                    .map(|x| {
-                        tags.iter()
-                            .find(|y| y.name == *x)
-                            .expect(
-                                format!(
-                                    "Tag {} not found in tags. Entry: {:?}\nEntry tags: {:?}",
-                                    x, entry, entry_tags
-                                )
-                                .as_str(),
-                            )
-                            .id
-                    })
-                    .collect();
+                let entry_tags: IndexSet<Tag> = entry_tags.iter().map(|t| Tag::new(t)).collect();
 
-                ProcessedDayEntry {
+                DayEntry {
                     date,
-                    mood: entry_mood,
+                    moods: IndexSet::from([Mood::new(&entry_mood.name)]),
                     tags: entry_tags,
                     note,
                 }
             })
             .collect();
 
-        let processed_pdf = ProcessedPdf {
+        Ok(Diary {
             day_entries,
             moods,
             tags,
-        };
-
-        processed_pdf
-            .check_soundness()
-            .context("Processed PDF is not sound. Please report this bug.")?;
-
-        Ok(processed_pdf)
-    }
-}
-
-impl ProcessedPdf {
-    fn check_soundness(&self) -> Result<()> {
-        for entry in &self.day_entries {
-            if !self.moods.iter().any(|m| m.id == entry.mood) {
-                eyre::bail!("Mood {} not found in moods", entry.mood);
-            }
-
-            // check for duplicate tags
-            let unique_tags = entry.tags.iter().collect::<HashSet<_>>();
-            if unique_tags.len() != entry.tags.len() {
-                eyre::bail!("Duplicate tag found in entry {:?}", entry);
-            }
-
-            for tag in &entry.tags {
-                if !self.tags.iter().any(|t| t.id == *tag) {
-                    eyre::bail!("Tag {} not found in tags", tag);
-                }
-            }
         }
-
-        Ok(())
-    }
-}
-
-impl From<Mood> for daylio::CustomMood {
-    fn from(mood: Mood) -> Self {
-        daylio::CustomMood {
-            id: mood.id,
-            predefined_name_id: if mood.predefined { mood.id } else { -1 },
-            custom_name: if mood.predefined {
-                String::new()
-            } else {
-                mood.name
-            },
-            mood_group_id: mood.group,
-            icon_id: mood.group,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<Tag> for daylio::Tag {
-    fn from(tag: Tag) -> Self {
-        daylio::Tag {
-            id: tag.id,
-            name: tag.name,
-            icon: 1,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<ProcessedDayEntry> for daylio::DayEntry {
-    fn from(entry: ProcessedDayEntry) -> Self {
-        daylio::DayEntry {
-            minute: i64::from(entry.date.minute()),
-            hour: i64::from(entry.date.hour()),
-            day: i64::from(entry.date.day()),
-            month: i64::from(entry.date.month()) - 1, // month is 0-indexed in Daylio
-            year: i64::from(entry.date.year()),
-            datetime: entry.date.and_utc().timestamp_millis(),
-            mood: entry.mood,
-            note: entry.note,
-            tags: entry.tags,
-            ..Default::default()
-        }
-    }
-}
-
-impl TryFrom<ProcessedPdf> for Daylio {
-    type Error = eyre::Error;
-    fn try_from(pdf: ProcessedPdf) -> Result<Self, Self::Error> {
-        merge(
-            Daylio::default(),
-            Daylio {
-                custom_moods: pdf.moods.into_iter().map(From::from).collect(),
-                tags: pdf.tags.into_iter().map(From::from).collect(),
-                day_entries: pdf.day_entries.into_iter().map(From::from).collect(),
-                ..Default::default()
-            },
-        )
+        .sorted())
     }
 }
 
@@ -488,6 +341,7 @@ mod tests {
     use super::*;
     use crate::parse_pdf::StatLine;
     use chrono::{Datelike, NaiveDate, Timelike};
+    use indexmap::IndexSet;
     use similar_asserts::assert_eq;
 
     #[test]
@@ -498,9 +352,9 @@ ride some spaces    and newline mid
 sentence. Unicode ligature ﬃ
 
 Preserve the empty line, but not the final one
-        
+
 ";
-        println!("original: {}", text);
+        println!("original: {text}");
 
         let simplified = simplify_note_heuristically(text.to_owned());
         assert_eq!(
@@ -519,7 +373,7 @@ Preserve the empty line, but not the final one
 
     #[test]
     fn test_parse_date() {
-        let entry = DayEntry {
+        let entry = ParsedDayEntry {
             date: NaiveDate::from_ymd_opt(2022, 8, 2).unwrap(),
             day_hour: "Monday 8 45 PM".to_owned(),
             mood: String::new(),
@@ -546,7 +400,7 @@ Preserve the empty line, but not the final one
 
     #[test]
     fn test_extract_tags() {
-        let entry = DayEntry {
+        let entry = ParsedDayEntry {
             date: NaiveDate::from_ymd_opt(2022, 9, 2).unwrap(),
             day_hour: String::new(),
             mood: String::new(),
@@ -561,21 +415,21 @@ Preserve the empty line, but not the final one
         };
 
         let tags = vec![
-            Tag {
-                id: 0,
+            TagDetail {
                 name: "some tag".to_owned(),
+                icon_id: None,
             },
-            Tag {
-                id: 1,
+            TagDetail {
                 name: "another tag".to_owned(),
+                icon_id: None,
             },
-            Tag {
-                id: 2,
+            TagDetail {
                 name: "yet another tag".to_owned(),
+                icon_id: None,
             },
-            Tag {
-                id: 3,
+            TagDetail {
                 name: "A tag, on another line".to_owned(),
+                icon_id: None,
             },
         ];
         let (note, tags) = extract_tags(&entry, &tags);
@@ -601,21 +455,21 @@ Preserve the empty line, but not the final one
     fn test_processed_pdf_from_parsed_pdf() {
         let parsed = ParsedPdf {
             day_entries: vec![
-                DayEntry {
+                ParsedDayEntry {
                     date: NaiveDate::from_ymd_opt(2022, 9, 2).unwrap(),
                     day_hour: "Monday 8 45 PM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note".to_owned()],
                     tags: vec![],
                 },
-                DayEntry {
+                ParsedDayEntry {
                     date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
                     day_hour: "Tuesday 8 45 AM".to_owned(),
                     mood: "rad".to_owned(),
                     note: vec!["This is a note²".to_owned()],
                     tags: vec![],
                 },
-                DayEntry {
+                ParsedDayEntry {
                     date: NaiveDate::from_ymd_opt(2022, 9, 3).unwrap(),
                     day_hour: "Tuesday 9 00 AM".to_owned(),
                     mood: "good".to_owned(),
@@ -637,62 +491,66 @@ Preserve the empty line, but not the final one
             ],
         };
 
-        let expected = ProcessedPdf {
+        let expected = Diary {
             day_entries: vec![
-                ProcessedDayEntry {
+                DayEntry {
                     date: parse_date(&parsed.day_entries[0]).unwrap(),
-                    mood: 1,
-                    tags: vec![],
+                    moods: IndexSet::from([Mood::new("rad")]),
+                    tags: IndexSet::new(),
                     note: "This is a note".to_owned(),
                 },
-                ProcessedDayEntry {
+                DayEntry {
                     date: parse_date(&parsed.day_entries[1]).unwrap(),
-                    mood: 1,
-                    tags: vec![],
+                    moods: IndexSet::from([Mood::new("rad")]),
+                    tags: IndexSet::new(),
                     note: "This is a note²".to_owned(),
                 },
-                ProcessedDayEntry {
+                DayEntry {
                     date: parse_date(&parsed.day_entries[2]).unwrap(),
-                    mood: 2,
-                    tags: vec![1, 0, 2],
+                    moods: IndexSet::from([Mood::new("good")]),
+                    tags: IndexSet::from([
+                        Tag::new("another tag"),
+                        Tag::new("some tag"),
+                        Tag::new("yet another tag"),
+                    ]),
                     note: "Note title\nNote body".to_owned(),
                 },
             ],
             moods: vec![
-                Mood {
-                    id: 1,
+                MoodDetail {
                     name: "rad".to_owned(),
-                    group: 1,
-                    predefined: true,
+                    wellbeing_value: Some(1),
+                    icon_id: None,
+                    category: None,
                 },
-                Mood {
-                    id: 2,
+                MoodDetail {
                     name: "good".to_owned(),
-                    group: 2,
-                    predefined: true,
+                    wellbeing_value: Some(2),
+                    icon_id: None,
+                    category: None,
                 },
             ],
             tags: vec![
-                Tag {
-                    id: 0,
-                    name: "some tag".to_owned(),
-                },
-                Tag {
-                    id: 1,
-                    name: "another tag".to_owned(),
-                },
-                Tag {
-                    id: 2,
-                    name: "yet another tag".to_owned(),
-                },
-                Tag {
-                    id: 3,
+                TagDetail {
                     name: "Tag that won't be matched".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "another tag".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "some tag".to_owned(),
+                    icon_id: None,
+                },
+                TagDetail {
+                    name: "yet another tag".to_owned(),
+                    icon_id: None,
                 },
             ],
         };
 
-        let processed = ProcessedPdf::try_from(parsed).unwrap();
+        let processed = Diary::try_from(parsed).unwrap();
 
         assert_eq!(processed, expected);
     }

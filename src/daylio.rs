@@ -1,26 +1,25 @@
 use color_eyre::eyre;
 use core::default::Default;
-use serde_derive::Deserialize;
-use serde_derive::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const NUMBER_OF_PREDEFINED_MOODS: i64 = 5;
+pub const NUMBER_OF_PREDEFINED_MOODS: u64 = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Daylio {
     pub version: i64,
     pub is_reminder_on: bool,
-    pub custom_moods: Vec<CustomMood>,
-    pub tags: Vec<Tag>,
-    pub day_entries: Vec<DayEntry>,
+    pub custom_moods: Vec<DaylioCustomMood>,
+    pub tags: Vec<DaylioTag>,
+    pub day_entries: Vec<DaylioDayEntry>,
     pub achievements: Vec<Achievement>,
     pub days_in_row_longest_chain: i64,
     pub goals: Vec<Value>,
     pub prefs: Vec<Pref>,
     #[serde(rename = "tag_groups")]
     pub tag_groups: Vec<TagGroup>,
-    pub metadata: Metadata,
+    pub metadata: DaylioMetadata,
     pub mood_icons_pack_id: i64,
     pub preferred_mood_icons_ids_for_mood_ids_for_icons_pack: Value,
     pub assets: Vec<Value>,
@@ -43,16 +42,113 @@ impl Daylio {
                     eyre::bail!("Invalid tag id {} in entry {:?}", tag, entry);
                 }
             }
+
+            for i in 1..=NUMBER_OF_PREDEFINED_MOODS as i64 {
+                if !self
+                    .custom_moods
+                    .iter()
+                    .any(|mood| mood.predefined_name_id == i)
+                {
+                    eyre::bail!("Missing predefined mood {}", i);
+                }
+            }
         }
 
         Ok(())
+    }
+
+    fn change_mood_id(
+        day_entries: &mut [DaylioDayEntry],
+        mood: &mut DaylioCustomMood,
+        new_id: i64,
+    ) {
+        for entry in day_entries {
+            if entry.mood == mood.id {
+                entry.mood = new_id;
+            }
+        }
+        mood.id = new_id;
+    }
+
+    pub fn sanitize(&mut self) {
+        const BIG_OFFSET: i64 = 100_000;
+
+        // make sure all default moods are present
+        for default_mood in Daylio::default().custom_moods {
+            if !self
+                .custom_moods
+                .iter()
+                .any(|mood| mood.predefined_name_id == default_mood.predefined_name_id)
+            {
+                self.custom_moods.push(default_mood);
+            }
+        }
+
+        // first pass on moods, to avoid collisions when changing ids
+        for (i, mood) in self.custom_moods.iter_mut().enumerate() {
+            Self::change_mood_id(&mut self.day_entries, mood, i as i64 * BIG_OFFSET);
+        }
+
+        // order is important, so we need to sort by mood_group_id and predefined comes first
+        self.custom_moods
+            .sort_by_key(|x| (x.mood_group_id, -x.predefined_name_id));
+
+        // predefined moods have to have the same id as the predefined name
+        for mood in &mut self.custom_moods {
+            if mood.predefined_name_id != -1 {
+                Daylio::change_mood_id(&mut self.day_entries, mood, mood.predefined_name_id);
+            }
+        }
+
+        // each mood group has an order, so we need to update it
+        for i in 0..self.custom_moods.len() {
+            if i == 0
+                || self.custom_moods[i].mood_group_id != self.custom_moods[i - 1].mood_group_id
+            {
+                self.custom_moods[i].mood_group_order = 0;
+            } else {
+                self.custom_moods[i].mood_group_order =
+                    self.custom_moods[i - 1].mood_group_order + 1;
+            }
+        }
+
+        // make sure entries are sorted
+        self.day_entries
+            .sort_by_key(|x| (-x.datetime, -x.year, -x.month));
+        for (i, entry) in self.day_entries.iter_mut().enumerate() {
+            entry.id = i as i64;
+        }
+    }
+}
+
+#[must_use]
+pub fn daylio_predefined_mood_idx(custom_name: &str) -> Option<u64> {
+    match custom_name.to_lowercase().as_ref() {
+        "super" | "rad" => Some(1),
+        "bien" | "good" => Some(2),
+        "mouais" | "meh" => Some(3),
+        "mauvais" | "bad" => Some(4),
+        "horrible" | "awful" => Some(5),
+        _ => None,
+    }
+}
+
+#[must_use]
+pub fn daylio_predefined_mood_name(id: i64) -> Option<&'static str> {
+    match id {
+        1 => Some("super"),
+        2 => Some("bien"),
+        3 => Some("mouais"),
+        4 => Some("mauvais"),
+        5 => Some("horrible"),
+        _ => None,
     }
 }
 
 impl Default for Daylio {
     fn default() -> Self {
-        let moods = (1..=5)
-            .map(|i| CustomMood {
+        let moods = (1..=NUMBER_OF_PREDEFINED_MOODS as i64)
+            .map(|i| DaylioCustomMood {
                 id: i,
                 icon_id: i,
                 predefined_name_id: i,
@@ -128,7 +224,7 @@ impl Default for Daylio {
                 is_expanded: true,
                 order: 1,
             }],
-            metadata: Metadata::default(),
+            metadata: DaylioMetadata::default(),
             mood_icons_pack_id: 1,
             preferred_mood_icons_ids_for_mood_ids_for_icons_pack: serde_json::json!(
                 {
@@ -151,7 +247,7 @@ impl Default for Daylio {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CustomMood {
+pub struct DaylioCustomMood {
     pub id: i64,
     #[serde(rename = "custom_name")]
     pub custom_name: String,
@@ -169,7 +265,7 @@ pub struct CustomMood {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Tag {
+pub struct DaylioTag {
     pub id: i64,
     pub name: String,
     pub created_at: i64,
@@ -182,7 +278,7 @@ pub struct Tag {
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DayEntry {
+pub struct DaylioDayEntry {
     pub id: i64,
     pub minute: i64,
     pub hour: i64,
@@ -755,7 +851,7 @@ pub struct TagGroup {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Metadata {
+pub struct DaylioMetadata {
     #[serde(rename = "number_of_entries")]
     pub number_of_entries: i64,
     #[serde(rename = "created_at")]
@@ -771,9 +867,9 @@ pub struct Metadata {
     pub photos_size: i64,
 }
 
-impl Default for Metadata {
+impl Default for DaylioMetadata {
     fn default() -> Self {
-        Metadata {
+        DaylioMetadata {
             number_of_entries: 0,
             created_at: 0,
             is_auto_backup: false,

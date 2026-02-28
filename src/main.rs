@@ -3,7 +3,10 @@ use std::path::PathBuf;
 use color_eyre::eyre::Result;
 
 use clap::{Parser, Subcommand};
-use daylio_tools::{load_daylio, merge, store_daylio, store_daylio_backup, store_daylio_json};
+use daylio_tools::{
+    DayEntryComparisonPolicy, load_daylio_backup, load_daylio_json, load_diary, merge,
+    store_daylio_backup, store_daylio_json, store_diary,
+};
 
 #[derive(Parser)]
 #[command(author, version, about)]
@@ -22,13 +25,6 @@ enum Commands {
         /// Output file
         output: PathBuf,
     },
-    /// Anonymize a Daylio backup file
-    Anonymize {
-        /// Input file
-        input: PathBuf,
-        /// Output file
-        output: PathBuf,
-    },
     /// Extract the JSON content of a Daylio backup
     Extract {
         /// Input file
@@ -38,6 +34,13 @@ enum Commands {
     },
     /// Pack a JSON-formatted Daylio into a backup
     Pack {
+        /// Input file
+        input: PathBuf,
+        /// Output file
+        output: PathBuf,
+    },
+    /// Convert a diary file between different formats
+    Convert {
         /// Input file
         input: PathBuf,
         /// Output file
@@ -55,10 +58,10 @@ fn main() -> Result<()> {
             input: inputs,
             output,
         } => {
-            let mut reference = load_daylio(&inputs[0])?;
+            let mut reference = load_diary(&inputs[0])?;
 
             for path in inputs.iter().skip(1) {
-                let other = load_daylio(path)?;
+                let other = load_diary(path)?;
                 println!(
                     "Merging {:#?} into {:#?}\nMergee has {} entries, reference has {} entries",
                     path,
@@ -66,28 +69,36 @@ fn main() -> Result<()> {
                     other.day_entries.len(),
                     reference.day_entries.len()
                 );
-                reference = merge(reference, other)?;
+                // TODO: make policy configurable
+                reference = merge(reference, other, DayEntryComparisonPolicy::Contained)?;
                 println!(
                     "Merged into {:#?} with {} entries",
                     inputs[0],
                     reference.day_entries.len()
                 );
             }
-            store_daylio(&reference, &output)?;
+
+            let word_count = reference
+                .day_entries
+                .iter()
+                .map(|entry| entry.note.split_whitespace().count())
+                .sum::<usize>();
+
+            store_diary(reference, &output)?;
             println!("Wrote merged file to {output:#?}");
-        }
-        Commands::Anonymize { input, output } => {
-            let mut daylio = load_daylio(&input)?;
-            daylio_tools::anonymize(&mut daylio);
-            store_daylio_backup(&daylio, &output)?;
+            println!("Approximately {word_count} words were written. Congrats!");
         }
         Commands::Extract { input, output } => {
-            let daylio = load_daylio(&input)?;
+            let daylio = load_daylio_backup(&input)?;
             store_daylio_json(&daylio, &output)?;
         }
         Commands::Pack { input, output } => {
-            let daylio = load_daylio(&input)?;
+            let daylio = load_daylio_json(&input)?;
             store_daylio_backup(&daylio, &output)?;
+        }
+        Commands::Convert { input, output } => {
+            let diary = load_diary(&input)?;
+            store_diary(diary, &output)?;
         }
     }
 
