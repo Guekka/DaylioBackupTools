@@ -102,7 +102,7 @@ pub fn store_diary_md(mut diary: Diary, path: &Path) -> Result<()> {
         moods: diary.moods.clone(),
         tags: diary.tags.clone(),
     };
-    let yaml = serde_yaml::to_string(&metadata)?;
+    let yaml = serde_yaml_ng::to_string(&metadata)?;
     writeln!(file, "---")?;
     writeln!(file, "{yaml}")?;
     writeln!(file, "---\n")?;

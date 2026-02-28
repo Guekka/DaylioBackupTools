@@ -240,7 +240,7 @@ fn parse_yaml_header(input: &str) -> IResult<&str, MdMetadata> {
         .and(tag("\n---"))
         .map(|((_, yaml_content), _)| {
             let metadata: MdMetadata =
-                serde_yaml::from_str(yaml_content).expect("Failed to parse YAML header");
+                serde_yaml_ng::from_str(yaml_content).expect("Failed to parse YAML header");
             metadata
         })
         .parse(input)
