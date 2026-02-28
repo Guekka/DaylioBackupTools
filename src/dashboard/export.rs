@@ -22,6 +22,8 @@ pub fn write_bundle(data: &DashboardData, out_dir: &Path, single_file: bool) -> 
     let index_html = INDEX_HTML_TMPL.replace("__EMBED_DATA__", &json);
     File::create(out_dir.join("index.html"))?.write_all(index_html.as_bytes())?;
 
+    // (Follow existing pattern: frontend reads embedded JSON and renders graphs.)
+
     if single_file {
         // Inline CSS and JS into the template
         let single_html = INDEX_HTML_TMPL

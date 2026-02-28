@@ -101,6 +101,8 @@ pub struct WritingStats {
     pub words_daily: Vec<DailyWords>,
     pub entries_daily: Vec<DailyEntries>,
     pub length_hist: Vec<LengthBucket>,
+    pub weekly_words: Vec<WeeklyWords>,
+    pub monthly_words: Vec<MonthlyWords>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DailyWords {
@@ -116,6 +118,18 @@ pub struct DailyEntries {
 pub struct LengthBucket {
     pub bucket: String,
     pub count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeeklyWords {
+    pub week: String,
+    pub words: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonthlyWords {
+    pub month: String,
+    pub words: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -529,10 +543,43 @@ pub fn compute_dashboard_stats(diary: &Diary, cfg: &StatsConfig) -> DashboardSta
         },
     ];
 
+    // --- weekly & monthly words aggregates ---
+    let mut weekly_map: HashMap<(i32, u32), u32> = HashMap::new(); // (year, iso_week) -> words
+    let mut monthly_map: HashMap<(i32, u32), u32> = HashMap::new(); // (year, month) -> words
+    for (d, entries) in &by_day {
+        let day_words: u32 = entries.iter().map(|e| word_count(e) as u32).sum();
+        if day_words == 0 {
+            continue;
+        }
+        let iso = d.iso_week();
+        *weekly_map.entry((iso.year(), iso.week())).or_insert(0) += day_words;
+        *monthly_map.entry((d.year(), d.month())).or_insert(0) += day_words;
+    }
+
+    let mut weekly_words: Vec<WeeklyWords> = weekly_map
+        .into_iter()
+        .map(|((y, w), words)| WeeklyWords {
+            week: format!("{}-W{:02}", y, w),
+            words,
+        })
+        .collect();
+    weekly_words.sort_by_key(|w| w.week.clone());
+
+    let mut monthly_words: Vec<MonthlyWords> = monthly_map
+        .into_iter()
+        .map(|((y, m), words)| MonthlyWords {
+            month: format!("{}-{:02}", y, m),
+            words,
+        })
+        .collect();
+    monthly_words.sort_by_key(|m| m.month.clone());
+
     stats.writing = WritingStats {
         words_daily: daily_words,
         entries_daily: daily_entries_vec,
         length_hist,
+        weekly_words,
+        monthly_words,
     };
 
     // Temporal stats

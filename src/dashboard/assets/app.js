@@ -109,6 +109,44 @@
             el('words-chart').innerHTML = '<p>No data</p>';
         }
 
+        // Weekly Words
+        el('weekly-words').innerHTML = "<div class='chart-block'><h2>Words Per Week</h2><div id='weekly-chart'></div></div>";
+        const weeklyData = (RAW_DATA.stats.writing.weekly_words || []).slice();
+        if (weeklyData.length) {
+            vl({
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                data: {values: weeklyData},
+                mark: {type: 'line', point: true},
+                width: 700,
+                height: 200,
+                encoding: {
+                    x: {field: 'week', type: 'ordinal', title: 'Week'},
+                    y: {field: 'words', type: 'quantitative', title: 'Words'}
+                }
+            }, '#weekly-chart');
+        } else {
+            el('weekly-chart').innerHTML = '<p>No weekly data</p>';
+        }
+
+        // Monthly Words
+        el('monthly-words').innerHTML = "<div class='chart-block'><h2>Words Per Month</h2><div id='monthly-chart'></div></div>";
+        const monthlyData = (RAW_DATA.stats.writing.monthly_words || []).slice();
+        if (monthlyData.length) {
+            vl({
+                $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                data: {values: monthlyData},
+                mark: 'bar',
+                width: 700,
+                height: 200,
+                encoding: {
+                    x: {field: 'month', type: 'ordinal', title: 'Month'},
+                    y: {field: 'words', type: 'quantitative', title: 'Words'}
+                }
+            }, '#monthly-chart');
+        } else {
+            el('monthly-chart').innerHTML = '<p>No monthly data</p>';
+        }
+
         // Mood Distribution
         el('mood-distribution').innerHTML = "<div class='chart-block'><h2>Mood Distribution</h2><div id='mood-dist-chart'></div></div>";
         const distValues = RAW_DATA.stats.mood.distribution.map(d => ({mood: d.mood, count: d.count}));
