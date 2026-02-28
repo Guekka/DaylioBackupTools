@@ -17,7 +17,7 @@ enum RootCommands {
     Tool(ToolCommands),
     Serve {
         /// Host to serve on
-        #[arg(long, default_value = "0.0.0.0")]
+        #[arg(long, default_value = "127.0.0.1")]
         host: String,
         /// Port to serve on
         #[arg(short, long, default_value = "14279")]
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
         RootCommands::Tool(tool_commands) => process_command(tool_commands)?,
         RootCommands::Serve { host, port } => {
             println!("Serving on {host}:{port}...");
-            serve(host, port).await;
+            serve(host, port).await?;
         }
     }
 
