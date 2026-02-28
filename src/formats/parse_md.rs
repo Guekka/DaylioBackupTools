@@ -1,7 +1,7 @@
 //! Parses a Markdown diary. This is not exactly related to Daylio, and is tailored to my
 //! personal needs.
 
-use crate::models::{DayEntry, Diary, MdMetadata, Mood, Tag};
+use crate::formats::models::{DayEntry, Diary, MdMetadata, Mood, Tag};
 use crate::{MoodDetail, TagDetail};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use color_eyre::eyre::{Context, Result};
@@ -31,7 +31,7 @@ static NOTE_BODY_REGEX: LazyLock<Regex, fn() -> Regex> = LazyLock::new(|| {
         (?P<body>.*)
         ",
     )
-        .unwrap()
+    .unwrap()
 });
 
 static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
@@ -60,7 +60,7 @@ static DATE_TIME_REGEX: LazyLock<Regex, fn() -> Regex> = // yyyy-mm-dd
         .unwrap()
     });
 
-pub(crate) fn parse_md(input: &str) -> Diary {
+pub fn parse_md(input: &str) -> Diary {
     let (input, header) = opt(parse_yaml_header).parse(input).unwrap();
 
     // entries are separated by a date in the format[YYYY-MM-DD HH:MM], with one of day and hour optional
@@ -246,7 +246,7 @@ fn parse_yaml_header(input: &str) -> IResult<&str, MdMetadata> {
         .parse(input)
 }
 
-pub(crate) fn load_md(path: &Path) -> Result<Diary> {
+pub fn load_md(path: &Path) -> Result<Diary> {
     let mut file =
         File::open(path).with_context(|| format!("Failed to open file: {}", path.display()))?;
     let mut data = String::new();

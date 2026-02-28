@@ -1,7 +1,7 @@
 pub use crate::Daylio;
 use crate::{
-    DaylioCustomMood, NUMBER_OF_PREDEFINED_MOODS, daylio, daylio_predefined_mood_idx,
-    daylio_predefined_mood_name,
+    daylio_predefined_mood_idx, daylio_predefined_mood_name, DaylioCustomMood,
+    NUMBER_OF_PREDEFINED_MOODS,
 };
 use chrono::{DateTime, Datelike, NaiveDateTime, Timelike};
 use color_eyre::eyre;
@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
+use crate::formats::daylio;
 
 static NO_MOOD: LazyLock<DaylioCustomMood, fn() -> DaylioCustomMood> =
     LazyLock::new(|| DaylioCustomMood {

@@ -1,9 +1,9 @@
 //! This module interprets the parsed PDF data into a Diary struct.
 
 use crate::daylio_predefined_mood_idx;
-pub(crate) use crate::models::{DayEntry, Mood};
-use crate::models::{Diary, MoodDetail, Tag, TagDetail};
-use crate::parse_pdf::{ParsedDayEntry, ParsedPdf};
+pub use crate::formats::models::{DayEntry, Mood};
+use crate::formats::models::{Diary, MoodDetail, Tag, TagDetail};
+use crate::formats::parse_pdf::{ParsedDayEntry, ParsedPdf};
 use chrono::{NaiveDateTime, NaiveTime};
 use color_eyre::{Result, eyre};
 use indexmap::IndexSet;
@@ -339,7 +339,7 @@ impl TryFrom<ParsedPdf> for Diary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parse_pdf::StatLine;
+    use crate::formats::parse_pdf::StatLine;
     use chrono::{Datelike, NaiveDate, Timelike};
     use indexmap::IndexSet;
     use similar_asserts::assert_eq;

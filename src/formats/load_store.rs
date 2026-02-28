@@ -9,8 +9,8 @@ use color_eyre::eyre::{ContextCompat, WrapErr, eyre};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
-use crate::models::Diary;
-use crate::parse_md::load_md;
+use crate::formats::models::Diary;
+use crate::formats::parse_md::load_md;
 use crate::{Daylio, MdMetadata};
 
 pub fn load_daylio_backup(path: &Path) -> Result<Daylio> {
@@ -37,7 +37,7 @@ pub fn load_daylio_json(path: &Path) -> Result<Daylio> {
 }
 
 pub fn load_daylio_pdf(path: &Path) -> Result<Diary> {
-    crate::parse_pdf::parse_pdf(path).and_then(TryInto::<Diary>::try_into)
+    crate::formats::parse_pdf::parse_pdf(path).and_then(TryInto::<Diary>::try_into)
 }
 
 pub fn load_diary_json(path: &Path) -> Result<Diary> {
