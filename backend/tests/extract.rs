@@ -12,7 +12,7 @@ mod tests {
     fn daylio_format() -> Result<()> {
         let actual = load_daylio_backup("tests/data/official/english.daylio".as_ref())?;
 
-        let mut f = std::fs::File::open("tests/data/official/english.json")?;
+        let mut f = std::fs::File::open("data/official/english.json")?;
         let expected = serde_json::from_reader::<_, Daylio>(&mut f)?;
 
         assert_eq!(actual, expected);
