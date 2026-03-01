@@ -31,6 +31,7 @@
     devShells = forEachSupportedSystem ({pkgs}: {
       default = pkgs.mkShell {
         packages = with pkgs; [
+          # backend
           rustToolchain
           openssl
           pkg-config
@@ -38,11 +39,14 @@
           cargo-edit
           cargo-watch
           rust-analyzer
-
           cmake
           poppler.dev
           poppler-utils
-        ];
+
+          # frontend
+          pnpm
+          nodejs
+          ];
 
         env = {
           # Required by rust-analyzer
